@@ -397,9 +397,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   itemBuilder: (ctx, i) => _buildWorkerCard(filtered[i], true),
                 ),
               ),
-      ],
-    ]);
-  }
+      ),
+    ],
+  ]);
+}
 
   // ─── DESKTOP BODY ───
   Widget _buildDesktopBody(List<Map<String, dynamic>> filtered, int total, int approved, int pending, int rejected, int resub) {
@@ -1287,7 +1288,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ],
     );
   }
-}
 }
 
 class _NavItem {
