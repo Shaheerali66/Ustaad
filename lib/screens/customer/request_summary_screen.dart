@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../data/user_database.dart';
 
 class RequestSummaryScreen extends StatefulWidget {
   final String? queryText;
@@ -49,12 +50,48 @@ class _RequestSummaryScreenState extends State<RequestSummaryScreen> {
     
     _selectedCategory = parsed['service'];
     _workController = TextEditingController(text: widget.queryText ?? 'AC servicing and cleaning required');
-    _locationController = TextEditingController(text: parsed['location']);
+    
+    String defaultLocation = parsed['location']!;
+    final user = UserDatabase.currentUser;
+    if (user != null) {
+      final userAddress = user['address'] ?? '';
+      final userCity = user['city'] ?? '';
+      final queryTextLower = (widget.queryText ?? '').toLowerCase();
+      
+      final hasSpecificCityMention = queryTextLower.contains('lahore') ||
+          queryTextLower.contains('lhr') ||
+          queryTextLower.contains('karachi') ||
+          queryTextLower.contains('khi') ||
+          queryTextLower.contains('hyderabad') ||
+          queryTextLower.contains('hyd') ||
+          queryTextLower.contains('islamabad') ||
+          queryTextLower.contains('isb') ||
+          queryTextLower.contains('rawalpindi') ||
+          queryTextLower.contains('peshawar') ||
+          queryTextLower.contains('multan') ||
+          queryTextLower.contains('faisalabad') ||
+          queryTextLower.contains('sialkot') ||
+          queryTextLower.contains('quetta') ||
+          queryTextLower.contains('gujranwala');
+
+      if (!hasSpecificCityMention) {
+        if (userAddress.isNotEmpty && userCity.isNotEmpty) {
+          defaultLocation = '$userAddress, $userCity';
+        } else if (userAddress.isNotEmpty) {
+          defaultLocation = userAddress;
+        } else if (userCity.isNotEmpty) {
+          defaultLocation = userCity;
+        }
+      }
+    }
+
+    _locationController = TextEditingController(text: defaultLocation);
     _timeController = TextEditingController(text: parsed['time']);
 
     // Real-time listener to sync location when user edits Actual Work Details
     _workController.addListener(_syncLocationFromWorkQuery);
   }
+
 
   void _syncLocationFromWorkQuery() {
     final text = _workController.text.toLowerCase();

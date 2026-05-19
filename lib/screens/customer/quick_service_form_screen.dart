@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../data/user_database.dart';
 
 class QuickServiceFormScreen extends StatefulWidget {
   final String? category;
@@ -26,11 +27,25 @@ class _QuickServiceFormScreenState extends State<QuickServiceFormScreen> {
   @override
   void initState() {
     super.initState();
-    // Default location to seed
+    // Pre-fill with customer's address from UserDatabase
+    final user = UserDatabase.currentUser;
+    if (user != null) {
+      final address = user['address'] ?? '';
+      final city = user['city'] ?? '';
+      if (address.isNotEmpty && city.isNotEmpty) {
+        _addressController.text = '$address, $city';
+      } else if (address.isNotEmpty) {
+        _addressController.text = address;
+      } else if (city.isNotEmpty) {
+        _addressController.text = city;
+      }
+    }
+
     _addressController.addListener(() {
       setState(() {});
     });
   }
+
 
   @override
   void dispose() {

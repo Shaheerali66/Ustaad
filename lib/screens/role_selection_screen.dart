@@ -41,9 +41,9 @@ class RoleSelectionScreen extends StatelessWidget {
                         icon: Icons.home_repair_service,
                         iconBg: AppColors.primaryContainer,
                         iconColor: AppColors.onPrimaryContainer,
-                        title: 'I want to hire a Service',
+                        title: 'I Want a Service',
                         subtitle: 'Find verified professionals for your needs.',
-                        onTap: () => context.go('/customer/home'),
+                        onTap: () => context.go('/customer/welcome'),
                       ),
                       const SizedBox(height: 16),
                       // Provider Card
@@ -51,7 +51,7 @@ class RoleSelectionScreen extends StatelessWidget {
                         icon: Icons.build,
                         iconBg: AppColors.secondaryContainer,
                         iconColor: AppColors.onSecondaryContainer,
-                        title: 'I want to provide a Service',
+                        title: 'I Am a Service Provider',
                         subtitle: 'Offer your skills and earn on your schedule.',
                         onTap: () => context.go('/technician/register'),
                       ),
@@ -63,11 +63,12 @@ class RoleSelectionScreen extends StatelessWidget {
                         children: [
                           Text('Already have an account? ', style: GoogleFonts.inter(fontSize: 16, color: AppColors.onSurfaceVariant)),
                           GestureDetector(
-                            onTap: () => context.go('/customer/home'),
+                            onTap: () => context.go('/customer/login'),
                             child: Text('Log In', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary)),
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 16),
                       
                       // Backend Admin Portal Link

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../data/user_database.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,6 +60,87 @@ class _HomeScreenState extends State<HomeScreen> {
     context.go('/customer/request-summary', extra: text);
   }
 
+  void _showCityChangeSheet() {
+    final List<String> cities = [
+      'Islamabad',
+      'Lahore',
+      'Karachi',
+      'Rawalpindi',
+      'Peshawar',
+      'Multan',
+      'Faisalabad',
+      'Sialkot',
+      'Hyderabad',
+      'Quetta',
+      'Gujranwala'
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      builder: (context) {
+        final currentCity = UserDatabase.currentUser?['city'] ?? 'Islamabad';
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Change Search Location',
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: cities.length,
+                  itemBuilder: (context, index) {
+                    final city = cities[index];
+                    final isSelected = city.toLowerCase() == currentCity.toString().toLowerCase();
+
+                    return ListTile(
+                      title: Text(
+                        city,
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? AppColors.primary : AppColors.onSurface,
+                        ),
+                      ),
+                      trailing: isSelected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
+                      onTap: () {
+                        UserDatabase.updateProfile({'city': city});
+                        setState(() {});
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Search location updated to $city!',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                            ),
+                            backgroundColor: AppColors.primary,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -66,6 +149,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = UserDatabase.currentUser;
+    final fullName = user?['fullName'] ?? 'Ahmed';
+    final firstName = fullName.split(' ').first;
+    final isFirst = UserDatabase.isFirstLogin;
+    final greetingText = isFirst ? 'Welcome, $firstName!' : 'Welcome back, $firstName!';
+
+    if (isFirst) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        UserDatabase.clearFirstLoginFlag();
+      });
+    }
+
+    final currentCity = user?['city'] ?? 'Islamabad';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
@@ -78,13 +175,24 @@ class _HomeScreenState extends State<HomeScreen> {
             automaticallyImplyLeading: false,
             title: Row(
               children: [
-                CircleAvatar(radius: 20, backgroundImage: NetworkImage(_avatarUrl)),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.primaryContainer,
+                  child: Text(
+                    firstName.substring(0, firstName.length > 1 ? 2 : 1).toUpperCase(),
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onPrimaryContainer,
+                    ),
+                  ),
+                ),
                 const Spacer(),
                 Text('Khidmat AI', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primary)),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.location_on_outlined, color: AppColors.onSurfaceVariant),
-                  onPressed: () {},
+                  onPressed: _showCityChangeSheet,
                 ),
               ],
             ),
@@ -94,8 +202,33 @@ class _HomeScreenState extends State<HomeScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // Greeting
-                Text('Good morning, Ahmed', style: GoogleFonts.inter(fontSize: 16, color: AppColors.onSurfaceVariant)),
+                Text(greetingText, style: GoogleFonts.inter(fontSize: 16, color: AppColors.onSurfaceVariant)),
                 const SizedBox(height: 4),
+                // Location Indicator below greeting
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Your location: $currentCity',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: _showCityChangeSheet,
+                      child: const Icon(
+                        Icons.edit,
+                        size: 13,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 Text('What service do you need today?', style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.onBackground, letterSpacing: -0.52)),
                 const SizedBox(height: 24),
                 // AI Chat Input Card

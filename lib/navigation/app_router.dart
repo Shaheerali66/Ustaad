@@ -23,6 +23,10 @@ import '../widgets/bottom_nav_shell.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/admin_login_screen.dart';
 import '../screens/customer/provider_chat_screen.dart';
+import '../screens/customer/welcome_screen.dart';
+import '../screens/customer/signup_screen.dart';
+import '../screens/customer/login_screen.dart';
+import '../data/user_database.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -40,7 +44,33 @@ Map<String, dynamic>? _getBookingDetails(Object? extra) {
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
+  redirect: (context, state) {
+    final isAuthenticated = UserDatabase.isAuthenticated;
+    final path = state.uri.path;
+    final isCustomerRoute = path.startsWith('/customer');
+    final isAuthRoute = path == '/customer/welcome' ||
+                        path == '/customer/login' ||
+                        path == '/customer/signup';
+
+    // Unauthenticated user trying to access any protected customer screen
+    // → redirect to welcome screen
+    if (isCustomerRoute && !isAuthenticated && !isAuthRoute) {
+      return '/customer/welcome';
+    }
+
+    // Authenticated user trying to access auth screens (welcome/login/signup)
+    // → skip auth and go straight to home dashboard
+    if (isAuthenticated && isAuthRoute) {
+      return '/customer/home';
+    }
+
+    return null;
+  },
   routes: [
+    GoRoute(path: '/customer/welcome', builder: (context, state) => const WelcomeScreen()),
+    GoRoute(path: '/customer/signup', builder: (context, state) => const SignupScreen()),
+    GoRoute(path: '/customer/login', builder: (context, state) => const LoginScreen()),
+
     GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
     GoRoute(path: '/role-selection', builder: (context, state) => const RoleSelectionScreen()),
 

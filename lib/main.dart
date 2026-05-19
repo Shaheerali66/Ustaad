@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'navigation/app_router.dart';
+import 'data/user_database.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  UserDatabase.init();
   runApp(const KhidmatAiApp());
 }
+
 
 class KhidmatAiApp extends StatelessWidget {
   const KhidmatAiApp({super.key});
