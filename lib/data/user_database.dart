@@ -226,4 +226,23 @@ class UserDatabase {
       syncUsersToCloud();
     }
   }
+
+  static String? _temporaryLocation;
+
+  static String? get temporaryLocation => _temporaryLocation;
+
+  static set temporaryLocation(String? value) {
+    _temporaryLocation = value;
+  }
+
+  static String get activeCity {
+    if (_temporaryLocation != null) {
+      final parts = _temporaryLocation!.split(',');
+      if (parts.length > 1) {
+        return parts.last.trim();
+      }
+      return _temporaryLocation!;
+    }
+    return currentUser?['city'] ?? 'Islamabad';
+  }
 }

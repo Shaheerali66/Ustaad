@@ -75,67 +75,267 @@ class _HomeScreenState extends State<HomeScreen> {
       'Gujranwala'
     ];
 
+    final TextEditingController manualLocationController = TextEditingController(
+      text: UserDatabase.temporaryLocation ?? ''
+    );
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
         ),
       ),
       builder: (context) {
-        final currentCity = UserDatabase.currentUser?['city'] ?? 'Islamabad';
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Change Search Location',
-                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              const Divider(),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: cities.length,
-                  itemBuilder: (context, index) {
-                    final city = cities[index];
-                    final isSelected = city.toLowerCase() == currentCity.toString().toLowerCase();
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            final hasTemp = UserDatabase.temporaryLocation != null;
+            final currentSavedCity = UserDatabase.currentUser?['city'] ?? 'Islamabad';
+            final activeLocText = UserDatabase.temporaryLocation ?? currentSavedCity;
 
-                    return ListTile(
-                      title: Text(
-                        city,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? AppColors.primary : AppColors.onSurface,
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Search Location',
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Temporary locations only apply to the current session.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  if (hasTemp) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryContainer.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Temporary Active:',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                Text(
+                                  activeLocText,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.onSurface,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              UserDatabase.temporaryLocation = null;
+                              setState(() {});
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Location reset to permanent: $currentSavedCity',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                  ),
+                                  backgroundColor: AppColors.primary,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              'Reset',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Manual location text field
+                  Text(
+                    'Enter Location Manually',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: manualLocationController,
+                          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. Sector F-11, Islamabad',
+                            hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
+                            prefixIcon: const Icon(Icons.edit_location_alt_outlined, color: AppColors.primary),
+                            filled: true,
+                            fillColor: AppColors.surfaceContainerLow,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onChanged: (val) {
+                            setSheetState(() {});
+                          },
                         ),
                       ),
-                      trailing: isSelected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
-                      onTap: () {
-                        UserDatabase.updateProfile({'city': city});
-                        setState(() {});
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Search location updated to $city!',
-                              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                            ),
-                            backgroundColor: AppColors.primary,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: manualLocationController.text.trim().isEmpty
+                            ? null
+                            : () {
+                                final inputLoc = manualLocationController.text.trim();
+                                UserDatabase.temporaryLocation = inputLoc;
+                                setState(() {});
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Session search location set to $inputLoc!',
+                                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                    ),
+                                    backgroundColor: AppColors.primary,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                );
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                          elevation: 0,
+                        ),
+                        child: const Icon(Icons.arrow_forward),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  
+                  Text(
+                    'Or Select a City',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: Container(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: cities.length,
+                        itemBuilder: (context, index) {
+                          final city = cities[index];
+                          final isSelected = !hasTemp 
+                              ? city.toLowerCase() == currentSavedCity.toLowerCase()
+                              : city.toLowerCase() == UserDatabase.temporaryLocation!.toLowerCase();
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              city,
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                color: isSelected ? AppColors.primary : AppColors.onSurface,
+                              ),
+                            ),
+                            trailing: isSelected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
+                            onTap: () {
+                              UserDatabase.temporaryLocation = city;
+                              setState(() {});
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Session search location set to $city!',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                  ),
+                                  backgroundColor: AppColors.primary,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -161,7 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    final currentCity = user?['city'] ?? 'Islamabad';
+    final currentCity = UserDatabase.activeCity;
 
     return Scaffold(
       backgroundColor: AppColors.background,

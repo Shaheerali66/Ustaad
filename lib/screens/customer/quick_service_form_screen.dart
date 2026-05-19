@@ -27,17 +27,21 @@ class _QuickServiceFormScreenState extends State<QuickServiceFormScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill with customer's address from UserDatabase
-    final user = UserDatabase.currentUser;
-    if (user != null) {
-      final address = user['address'] ?? '';
-      final city = user['city'] ?? '';
-      if (address.isNotEmpty && city.isNotEmpty) {
-        _addressController.text = '$address, $city';
-      } else if (address.isNotEmpty) {
-        _addressController.text = address;
-      } else if (city.isNotEmpty) {
-        _addressController.text = city;
+    final tempLoc = UserDatabase.temporaryLocation;
+    if (tempLoc != null) {
+      _addressController.text = tempLoc;
+    } else {
+      final user = UserDatabase.currentUser;
+      if (user != null) {
+        final address = user['address'] ?? '';
+        final city = user['city'] ?? '';
+        if (address.isNotEmpty && city.isNotEmpty) {
+          _addressController.text = '$address, $city';
+        } else if (address.isNotEmpty) {
+          _addressController.text = address;
+        } else if (city.isNotEmpty) {
+          _addressController.text = city;
+        }
       }
     }
 

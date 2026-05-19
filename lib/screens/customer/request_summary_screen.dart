@@ -75,7 +75,9 @@ class _RequestSummaryScreenState extends State<RequestSummaryScreen> {
           queryTextLower.contains('gujranwala');
 
       if (!hasSpecificCityMention) {
-        if (userAddress.isNotEmpty && userCity.isNotEmpty) {
+        if (UserDatabase.temporaryLocation != null) {
+          defaultLocation = UserDatabase.temporaryLocation!;
+        } else if (userAddress.isNotEmpty && userCity.isNotEmpty) {
           defaultLocation = '$userAddress, $userCity';
         } else if (userAddress.isNotEmpty) {
           defaultLocation = userAddress;
