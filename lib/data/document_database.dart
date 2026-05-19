@@ -35,13 +35,48 @@ class DocumentDatabase {
   // Cache for loaded technicians
   static List<Map<String, dynamic>>? _cachedTechnicians;
 
+  // Track the last known count for new-application detection
+  static int _lastKnownCount = 0;
+
   // Master database of all onboarded technicians with Local + Cloud Sync
   static List<Map<String, dynamic>> get onboardedTechnicians {
     if (_cachedTechnicians == null) {
       _cachedTechnicians = [];
       _loadFromLocalStorage();
+      _lastKnownCount = _cachedTechnicians!.length;
     }
     return _cachedTechnicians!;
+  }
+
+  // Get count of pending applications
+  static int get pendingApplicationsCount {
+    return onboardedTechnicians.where((t) => t['status'] == 'Pending Approval').length;
+  }
+
+  // Get count of new applications since last check
+  static int get newApplicationsSinceLastCheck {
+    final current = onboardedTechnicians.length;
+    final diff = current - _lastKnownCount;
+    return diff > 0 ? diff : 0;
+  }
+
+  // Reset the "new" counter after admin has seen the notification
+  static void acknowledgeNewApplications() {
+    _lastKnownCount = onboardedTechnicians.length;
+  }
+
+  // Update a technician record by ID
+  static void updateTechnician(String id, Map<String, dynamic> updatedData) {
+    final list = onboardedTechnicians;
+    final index = list.indexWhere((t) => t['id']?.toString() == id);
+    if (index != -1) {
+      // Merge updated fields into the existing record
+      updatedData.forEach((key, value) {
+        list[index][key] = value;
+      });
+      persistChanges();
+      syncToCloud();
+    }
   }
 
   // Load from LocalStorage (initial instant offline load)
@@ -52,8 +87,8 @@ class DocumentDatabase {
         final List<dynamic> decoded = jsonDecode(data);
         _cachedTechnicians = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
       }
-    } catch (e) {
-      print('Error loading from local storage: $e');
+    } catch (_) {
+      // Silent fail — will use defaults
     }
     
     // Seed default values if completely empty
@@ -81,6 +116,7 @@ class DocumentDatabase {
         'cnicBackName': 'cnic_back.jpg',
         'profilePhotoName': 'ali_avatar.jpg',
         'certificationName': 'hvac_cert.pdf',
+        'adminNotes': '',
       },
       {
         'id': '102',
@@ -97,6 +133,7 @@ class DocumentDatabase {
         'cnicBackName': 'bilal_cnic_back.jpg',
         'profilePhotoName': 'bilal.png',
         'certificationName': 'plumbing_diploma.pdf',
+        'adminNotes': '',
       }
     ];
   }
@@ -107,12 +144,12 @@ class DocumentDatabase {
       if (_cachedTechnicians != null) {
         html.window.localStorage['khidmat_onboarded_technicians_v2'] = jsonEncode(_cachedTechnicians);
       }
-    } catch (e) {
-      print('Error saving to local storage: $e');
+    } catch (_) {
+      // Silent fail
     }
   }
 
-  // Push all local modifications to Cloud Database asynchronously (Using HTTP PUT for direct JSONBin updates)
+  // Push all local modifications to Cloud Database asynchronously
   static Future<bool> syncToCloud() async {
     try {
       final listToUpload = onboardedTechnicians;
@@ -121,21 +158,16 @@ class DocumentDatabase {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(listToUpload),
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('Cloud Sync successful (Pushed).');
-        return true;
-      } else {
-        print('Cloud Sync failed with status: ${response.statusCode}');
-        return false;
-      }
-    } catch (e) {
-      print('Network error syncing to cloud: $e');
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (_) {
       return false;
     }
   }
 
   // Pull latest registrations from Cloud Database
-  static Future<bool> syncFromCloud() async {
+  // Returns a SyncResult with success status and list of new entries
+  static Future<SyncResult> syncFromCloudWithInfo() async {
+    final previousCount = onboardedTechnicians.length;
     try {
       final response = await http.get(Uri.parse(_cloudUrl));
       if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
@@ -143,18 +175,14 @@ class DocumentDatabase {
         if (decoded.isNotEmpty) {
           final cloudList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
           
-          // Merge local pending additions into the cloud list if they are not in the cloud yet
+          // Merge logic
           final Map<String, Map<String, dynamic>> mergedMap = {};
           
-          // 1. Add all from cloud
           for (var item in cloudList) {
             final String? id = item['id']?.toString();
-            if (id != null) {
-              mergedMap[id] = item;
-            }
+            if (id != null) mergedMap[id] = item;
           }
           
-          // 2. Add local defaults and dynamic ones
           final currentLocal = onboardedTechnicians;
           for (var item in currentLocal) {
             final String? id = item['id']?.toString();
@@ -165,7 +193,6 @@ class DocumentDatabase {
 
           _cachedTechnicians = mergedMap.values.toList();
           
-          // Sort by ID to keep order clean
           _cachedTechnicians!.sort((a, b) {
             final int idA = int.tryParse(a['id']?.toString() ?? '0') ?? 0;
             final int idB = int.tryParse(b['id']?.toString() ?? '0') ?? 0;
@@ -173,15 +200,27 @@ class DocumentDatabase {
           });
 
           persistChanges();
-          print('Cloud Sync successful (Pulled). Length: ${_cachedTechnicians!.length}');
-          return true;
+
+          // Detect new entries
+          final newCount = _cachedTechnicians!.length - previousCount;
+          List<Map<String, dynamic>> newEntries = [];
+          if (newCount > 0) {
+            newEntries = _cachedTechnicians!.sublist(previousCount);
+          }
+
+          return SyncResult(success: true, newEntries: newEntries);
         }
       }
-      return false;
-    } catch (e) {
-      print('Network error pulling from cloud: $e');
-      return false;
+      return SyncResult(success: false, newEntries: []);
+    } catch (_) {
+      return SyncResult(success: false, newEntries: []);
     }
+  }
+
+  // Legacy syncFromCloud for backwards compatibility
+  static Future<bool> syncFromCloud() async {
+    final result = await syncFromCloudWithInfo();
+    return result.success;
   }
 
   static void saveDocuments({
@@ -229,6 +268,7 @@ class DocumentDatabase {
       'city': 'Islamabad',
       'hourlyRate': currentRate ?? 1000,
       'status': 'Pending Approval',
+      'adminNotes': '',
       // Dynamic base64 documents & metadata
       'cnicFront': cnicFront,
       'cnicFrontName': cnicFrontName,
@@ -244,10 +284,7 @@ class DocumentDatabase {
       'certificationSize': certificationSize,
     });
     
-    // 1. Save changes locally immediately
     persistChanges();
-    
-    // 2. Push to cloud database in the background to sync with all other devices instantly!
     syncToCloud();
     
     // Clear temporary wizard variables
@@ -271,4 +308,12 @@ class DocumentDatabase {
     certificationName = null;
     certificationSize = null;
   }
+}
+
+// Result class for sync operations
+class SyncResult {
+  final bool success;
+  final List<Map<String, dynamic>> newEntries;
+
+  SyncResult({required this.success, required this.newEntries});
 }
