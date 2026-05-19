@@ -71,37 +71,41 @@ class DocumentDatabase {
 
   // Update a technician record by ID securely (Cloud transaction style)
   static Future<bool> updateTechnician(String id, Map<String, dynamic> updatedData) async {
+    // 1. Update cached list locally first
+    final list = List<Map<String, dynamic>>.from(onboardedTechnicians);
+    final index = list.indexWhere((t) => t['id']?.toString() == id);
+    if (index != -1) {
+      updatedData.forEach((key, value) {
+        list[index][key] = value;
+      });
+      _cachedTechnicians = list;
+      persistChanges();
+    }
+
     try {
-      // 1. Always pull latest from cloud first
+      // 2. Try to sync to cloud
       final response = await http.get(Uri.parse(_cloudUrl));
       if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(response.body);
-        final list = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+        final cloudList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
 
-        final index = list.indexWhere((t) => t['id']?.toString() == id);
-        if (index != -1) {
+        final cloudIndex = cloudList.indexWhere((t) => t['id']?.toString() == id);
+        if (cloudIndex != -1) {
           updatedData.forEach((key, value) {
-            list[index][key] = value;
+            cloudList[cloudIndex][key] = value;
           });
           
-          // 2. Put back to cloud
-          final putResponse = await http.put(
+          await http.put(
             Uri.parse(_cloudUrl),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(list),
+            body: jsonEncode(cloudList),
           );
-
-          if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
-            _cachedTechnicians = list;
-            persistChanges();
-            return true;
-          }
         }
       }
-      return false;
     } catch (_) {
-      return false;
+      // Fail silently to keep application running offline
     }
+    return true; // Always succeed locally
   }
 
   // Load from LocalStorage (initial instant offline load)
@@ -273,92 +277,99 @@ class DocumentDatabase {
   }
 
   static Future<bool> addOnboardedTechnician() async {
+    List<Map<String, dynamic>> list = [];
+    bool cloudFetchSuccess = false;
     try {
-      // 1. Fetch latest list from cloud first to avoid race overwrites
       final response = await http.get(Uri.parse(_cloudUrl));
-      List<Map<String, dynamic>> list = [];
       if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(response.body);
         list = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+        cloudFetchSuccess = true;
       }
+    } catch (_) {
+      // Fallback to local
+    }
 
-      // Generate a unique ID based on max ID in the list
-      int maxId = 100;
-      for (var tech in list) {
-        final idInt = int.tryParse(tech['id']?.toString() ?? '');
-        if (idInt != null && idInt > maxId) {
-          maxId = idInt;
-        }
+    if (!cloudFetchSuccess) {
+      list = List<Map<String, dynamic>>.from(onboardedTechnicians);
+    }
+
+    // Generate a unique ID based on max ID in the list
+    int maxId = 100;
+    for (var tech in list) {
+      final idInt = int.tryParse(tech['id']?.toString() ?? '');
+      if (idInt != null && idInt > maxId) {
+        maxId = idInt;
       }
-      final newId = (maxId + 1).toString();
+    }
+    final newId = (maxId + 1).toString();
 
-      final newTech = {
-        'id': newId,
-        'name': currentName ?? 'New Technician',
-        'cnic': currentCnic ?? 'N/A',
-        'phone': currentPhone ?? 'N/A',
-        'category': currentCategory ?? 'General Trades',
-        'experience': currentExperience ?? 3,
-        'area': currentArea ?? 'Sector G-11',
-        'city': 'Islamabad',
-        'hourlyRate': currentRate ?? 1000,
-        'status': 'Pending Approval',
-        'adminNotes': '',
-        // Dynamic base64 documents & metadata
-        'cnicFront': cnicFront,
-        'cnicFrontName': cnicFrontName,
-        'cnicFrontSize': cnicFrontSize,
-        'cnicBack': cnicBack,
-        'cnicBackName': cnicBackName,
-        'cnicBackSize': cnicBackSize,
-        'profilePhoto': profilePhoto,
-        'profilePhotoName': profilePhotoName,
-        'profilePhotoSize': profilePhotoSize,
-        'certification': certification,
-        'certificationName': certificationName,
-        'certificationSize': certificationSize,
-      };
+    final newTech = {
+      'id': newId,
+      'name': currentName ?? 'New Technician',
+      'cnic': currentCnic ?? 'N/A',
+      'phone': currentPhone ?? 'N/A',
+      'category': currentCategory ?? 'General Trades',
+      'experience': currentExperience ?? 3,
+      'area': currentArea ?? 'Sector G-11',
+      'city': 'Islamabad',
+      'hourlyRate': currentRate ?? 1000,
+      'status': 'Pending Approval',
+      'adminNotes': '',
+      // Dynamic base64 documents & metadata
+      'cnicFront': cnicFront,
+      'cnicFrontName': cnicFrontName,
+      'cnicFrontSize': cnicFrontSize,
+      'cnicBack': cnicBack,
+      'cnicBackName': cnicBackName,
+      'cnicBackSize': cnicBackSize,
+      'profilePhoto': profilePhoto,
+      'profilePhotoName': profilePhotoName,
+      'profilePhotoSize': profilePhotoSize,
+      'certification': certification,
+      'certificationName': certificationName,
+      'certificationSize': certificationSize,
+    };
 
-      list.add(newTech);
+    list.add(newTech);
 
-      // 2. Put back to cloud
-      final putResponse = await http.put(
+    // Save locally
+    _cachedTechnicians = list;
+    persistChanges();
+
+    // Clear temporary wizard variables
+    currentName = null;
+    currentCnic = null;
+    currentPhone = null;
+    currentCategory = null;
+    currentExperience = null;
+    currentArea = null;
+    currentRate = null;
+    cnicFront = null;
+    cnicFrontName = null;
+    cnicFrontSize = null;
+    cnicBack = null;
+    cnicBackName = null;
+    cnicBackSize = null;
+    profilePhoto = null;
+    profilePhotoName = null;
+    profilePhotoSize = null;
+    certification = null;
+    certificationName = null;
+    certificationSize = null;
+
+    try {
+      // Put back to cloud asynchronously
+      await http.put(
         Uri.parse(_cloudUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(list),
       );
-
-      if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
-        _cachedTechnicians = list;
-        persistChanges();
-
-        // Clear temporary wizard variables
-        currentName = null;
-        currentCnic = null;
-        currentPhone = null;
-        currentCategory = null;
-        currentExperience = null;
-        currentArea = null;
-        currentRate = null;
-        cnicFront = null;
-        cnicFrontName = null;
-        cnicFrontSize = null;
-        cnicBack = null;
-        cnicBackName = null;
-        cnicBackSize = null;
-        profilePhoto = null;
-        profilePhotoName = null;
-        profilePhotoSize = null;
-        certification = null;
-        certificationName = null;
-        certificationSize = null;
-
-        return true;
-      }
-      return false;
     } catch (_) {
-      return false;
+      // Fail silently to keep application running offline
     }
+
+    return true; // Always succeed locally
   }
 }
 
