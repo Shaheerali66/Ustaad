@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/document_database.dart';
+import '../../data/bookings_repository.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -15,6 +16,7 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _selectedStatusFilter = 'All';
+  String _selectedComplaintStatusFilter = 'All';
   String _searchQuery = '';
   bool _isSyncing = false;
   bool _isConnected = true;
@@ -28,6 +30,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItem('Approved Workers', Icons.check_circle_rounded),
     _NavItem('Rejected Workers', Icons.cancel_rounded),
     _NavItem('Pending Review', Icons.pending_actions_rounded),
+    _NavItem('Complaints', Icons.warning_rounded),
     _NavItem('Settings', Icons.settings_rounded),
   ];
 
@@ -191,19 +194,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         dense: true,
         leading: Icon(item.icon, color: isActive ? Colors.white : Colors.white54, size: 20),
         title: Text(item.label, style: GoogleFonts.inter(fontSize: 13, fontWeight: isActive ? FontWeight.w700 : FontWeight.w500, color: isActive ? Colors.white : Colors.white70)),
-        trailing: item.label == 'Pending Review' && pendingCount > 0
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(10)),
-                child: Text('$pendingCount', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black)),
-              )
-            : null,
+        trailing: _getNavTrailing(item.label, pendingCount),
         onTap: () {
           _onNavTap(item.label);
           if (inDrawer) Navigator.pop(context);
         },
       ),
     );
+  }
+
+  Widget? _getNavTrailing(String label, int pendingCount) {
+    if (label == 'Pending Review' && pendingCount > 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(10)),
+        child: Text('$pendingCount', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black)),
+      );
+    }
+    if (label == 'Complaints') {
+      final pendingComplaints = BookingsRepository.complaints
+          .where((c) => c['status'] == 'Under Review')
+          .length;
+      if (pendingComplaints > 0) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(10)),
+          child: Text('$pendingComplaints', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+        );
+      }
+    }
+    return null;
   }
 
   // ─── TOP HEADER BAR ───
@@ -334,7 +354,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       // Offline warning banner
       if (!_isConnected)
         _buildOfflineBanner(),
-      // Stats row
+      if (_activeNav == 'Complaints')
+        Expanded(child: _buildComplaintsPanel(true))
+      else ...[
+        // Stats row
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -374,7 +397,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   itemBuilder: (ctx, i) => _buildWorkerCard(filtered[i], true),
                 ),
               ),
-      ),
+      ],
     ]);
   }
 
@@ -430,9 +453,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _buildTopBar(pending, false),
         if (_newAlerts.isNotEmpty) _buildAlertBanner(),
         if (!_isConnected) _buildOfflineBanner(),
-        Expanded(child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          child: _activeNav == 'Complaints'
+              ? _buildComplaintsPanel(false)
+              : Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Worker Management Directory', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
             Text('Inspect, edit, approve, or reject worker applications across all devices in real time.', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant)),
@@ -937,6 +963,331 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ]),
     );
   }
+
+  // ─── COMPLAINTS PANEL BUILDERS ───
+  Widget _buildComplaintsPanel(bool isMobile) {
+    final list = BookingsRepository.complaints.where((c) {
+      if (_selectedComplaintStatusFilter == 'All') return true;
+      return c['status'] == _selectedComplaintStatusFilter;
+    }).toList();
+
+    return Padding(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Customer Complaints Manager', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('View, resolve, or dismiss client concerns and service provider feedback.', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant)),
+          const SizedBox(height: 20),
+          // Filter Row
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _complaintFilterChip('All', BookingsRepository.complaints.length.toString()),
+                const SizedBox(width: 8),
+                _complaintFilterChip('Under Review', BookingsRepository.complaints.where((c) => c['status'] == 'Under Review').length.toString()),
+                const SizedBox(width: 8),
+                _complaintFilterChip('Resolved', BookingsRepository.complaints.where((c) => c['status'] == 'Resolved').length.toString()),
+                const SizedBox(width: 8),
+                _complaintFilterChip('Dismissed', BookingsRepository.complaints.where((c) => c['status'] == 'Dismissed').length.toString()),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: list.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+                        const SizedBox(height: 12),
+                        Text('No complaints matching filters.', style: GoogleFonts.inter(fontSize: 16, color: AppColors.onSurfaceVariant)),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 16),
+                    itemBuilder: (ctx, i) {
+                      final c = list[i];
+                      return _buildComplaintCard(c, isMobile);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _complaintFilterChip(String label, String count) {
+    final isSelected = _selectedComplaintStatusFilter == label;
+    return InkWell(
+      onTap: () => setState(() => _selectedComplaintStatusFilter = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : AppColors.surfaceVariant.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? AppColors.primary : AppColors.outlineVariant),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500, color: isSelected ? Colors.white : AppColors.onSurface)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(color: isSelected ? Colors.white.withValues(alpha: 0.2) : Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+              child: Text(count, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: isSelected ? Colors.white : Colors.black)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComplaintCard(Map<String, dynamic> c, bool isMobile) {
+    final id = c['id']?.toString() ?? '';
+    final custName = c['customerName']?.toString() ?? '';
+    final provName = c['providerName']?.toString() ?? '';
+    final servDate = c['serviceDate']?.toString() ?? '';
+    final category = c['category']?.toString() ?? '';
+    final desc = c['description']?.toString() ?? '';
+    final status = c['status']?.toString() ?? 'Under Review';
+    final notes = c['resolutionNotes']?.toString() ?? '';
+    final subDate = c['submissionDate']?.toString() ?? '';
+    final List<dynamic> photos = c['photoEvidence'] ?? [];
+
+    Color statusColor = Colors.amber;
+    if (status == 'Resolved') statusColor = Colors.green;
+    if (status == 'Dismissed') statusColor = Colors.grey;
+
+    final notesController = TextEditingController(text: notes);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceVariant),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6, offset: const Offset(0, 3))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('$id • Submitted on $subDate', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
+                child: Text(status, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: statusColor)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
+            child: Text(category, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.red.shade800)),
+          ),
+          const SizedBox(height: 12),
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _detailCol('Customer', custName),
+                    const SizedBox(height: 8),
+                    _detailCol('Provider', provName),
+                    const SizedBox(height: 8),
+                    _detailCol('Service Date', servDate),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: _detailCol('Customer', custName)),
+                    Expanded(child: _detailCol('Provider', provName)),
+                    Expanded(child: _detailCol('Service Date', servDate)),
+                  ],
+                ),
+          const SizedBox(height: 16),
+          Text('Description:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Text(desc, style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+          if (photos.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Evidence Attachment:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            Row(
+              children: photos.map((p) {
+                return GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => Dialog(
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
+                          child: Image.network(p.toString()),
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                      image: DecorationImage(image: NetworkImage(p.toString()), fit: BoxFit.cover),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 12),
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Resolution Notes:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: notesController,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText: 'Enter internal details or resolutions taken...',
+                        hintStyle: GoogleFonts.inter(fontSize: 12),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Update Status:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: status,
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurface, fontWeight: FontWeight.w700),
+                          items: ['Under Review', 'Resolved', 'Dismissed'].map((st) {
+                            return DropdownMenuItem(value: st, child: Text(st));
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              BookingsRepository.updateComplaintStatus(id, val, notesController.text.trim());
+                              setState(() {});
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Resolution Notes:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: notesController,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              hintText: 'Enter internal details or resolutions taken...',
+                              hintStyle: GoogleFonts.inter(fontSize: 12),
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Update Status:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: status,
+                              style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurface, fontWeight: FontWeight.w700),
+                              items: ['Under Review', 'Resolved', 'Dismissed'].map((st) {
+                                return DropdownMenuItem(value: st, child: Text(st));
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  BookingsRepository.updateComplaintStatus(id, val, notesController.text.trim());
+                                  setState(() {});
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: ElevatedButton(
+              onPressed: () {
+                BookingsRepository.updateComplaintStatus(id, status, notesController.text.trim());
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Complaint $id resolution saved!', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                    backgroundColor: Colors.teal,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              child: Text('Save Notes', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailCol(String label, String val) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+        const SizedBox(height: 2),
+        Text(val, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
 }
 
 class _NavItem {
