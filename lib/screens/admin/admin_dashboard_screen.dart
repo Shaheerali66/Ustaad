@@ -38,7 +38,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _syncWithCloud();
-    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _pollForUpdates());
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollForUpdates());
   }
 
   @override
@@ -51,6 +51,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
     final result = await DocumentDatabase.syncFromCloudWithInfo();
+    await BookingsRepository.syncBookingsFromCloud();
+    await BookingsRepository.syncComplaintsFromCloud();
     if (mounted) {
       setState(() {
         _isSyncing = false;
@@ -71,6 +73,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _pollForUpdates() async {
     final result = await DocumentDatabase.syncFromCloudWithInfo();
+    await BookingsRepository.syncBookingsFromCloud();
+    await BookingsRepository.syncComplaintsFromCloud();
     if (mounted) {
       setState(() {
         _isConnected = true;

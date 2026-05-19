@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../theme/app_colors.dart';
 
 class BookingData {
@@ -204,6 +205,85 @@ class BookingsRepository {
   static const String _bookingsKey = 'khidmat_bookings_v2';
   static const String _complaintsKey = 'khidmat_complaints_v2';
 
+  static const String _bookingsCloudUrl = 'https://jsonbin-zeta.vercel.app/api/bins/L5f2Y_PZP-';
+  static const String _complaintsCloudUrl = 'https://jsonbin-zeta.vercel.app/api/bins/beyrzqQzfw';
+
+  static Future<bool> syncBookingsToCloud() async {
+    try {
+      final response = await http.put(
+        Uri.parse(_bookingsCloudUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_bookings.map((e) => e.toJson()).toList()),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> syncBookingsFromCloud() async {
+    try {
+      final response = await http.get(Uri.parse(_bookingsCloudUrl));
+      if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(response.body);
+        if (decoded.isNotEmpty) {
+          _bookings = decoded.map((e) => BookingData.fromJson(Map<String, dynamic>.from(e))).toList();
+          _saveBookings();
+          return true;
+        } else {
+          // Cloud empty? Upload local defaults
+          if (_bookings.isEmpty) {
+            _bookings = _getDefaultSeeds();
+            _saveBookings();
+          }
+          await syncBookingsToCloud();
+          return true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> syncComplaintsToCloud() async {
+    try {
+      final response = await http.put(
+        Uri.parse(_complaintsCloudUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_complaints),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> syncComplaintsFromCloud() async {
+    try {
+      final response = await http.get(Uri.parse(_complaintsCloudUrl));
+      if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(response.body);
+        if (decoded.isNotEmpty) {
+          _complaints = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+          _saveComplaints();
+          return true;
+        } else {
+          // Cloud empty? Upload local defaults
+          if (_complaints.isEmpty) {
+            _complaints = _getDefaultComplaintsSeeds();
+            _saveComplaints();
+          }
+          await syncComplaintsToCloud();
+          return true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static void init() {
     try {
       final bookingsData = html.window.localStorage[_bookingsKey];
@@ -227,6 +307,8 @@ class BookingsRepository {
       _bookings = _getDefaultSeeds();
       _complaints = _getDefaultComplaintsSeeds();
     }
+    syncBookingsFromCloud();
+    syncComplaintsFromCloud();
   }
 
   static List<BookingData> get bookings {
@@ -252,6 +334,7 @@ class BookingsRepository {
     final enrichedBooking = booking.copyWith(id: bookingId);
     _bookings.insert(0, enrichedBooking);
     _saveBookings();
+    syncBookingsToCloud();
   }
 
   static void updateBooking(BookingData booking) {
@@ -259,6 +342,7 @@ class BookingsRepository {
     if (idx != -1) {
       _bookings[idx] = booking;
       _saveBookings();
+      syncBookingsToCloud();
     }
   }
 
@@ -271,6 +355,7 @@ class BookingsRepository {
         action: 'View Receipt',
       );
       _saveBookings();
+      syncBookingsToCloud();
     }
   }
 
@@ -285,6 +370,7 @@ class BookingsRepository {
         cancellationNotes: notes,
       );
       _saveBookings();
+      syncBookingsToCloud();
     }
   }
 
@@ -307,6 +393,7 @@ class BookingsRepository {
         workDetails: workDetails,
       );
       _saveBookings();
+      syncBookingsToCloud();
     }
   }
 
@@ -318,12 +405,14 @@ class BookingsRepository {
         review: review,
       );
       _saveBookings();
+      syncBookingsToCloud();
     }
   }
 
   static void addComplaint(Map<String, dynamic> complaint) {
     _complaints.insert(0, complaint);
     _saveComplaints();
+    syncComplaintsToCloud();
   }
 
   static void updateComplaintStatus(String id, String status, String notes) {
@@ -332,6 +421,7 @@ class BookingsRepository {
       _complaints[idx]['status'] = status;
       _complaints[idx]['resolutionNotes'] = notes;
       _saveComplaints();
+      syncComplaintsToCloud();
     }
   }
 

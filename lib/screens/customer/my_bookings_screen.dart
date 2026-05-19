@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,6 +16,7 @@ class MyBookingsScreen extends StatefulWidget {
 
 class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _refreshTimer;
 
   String _currentView = 'list'; // 'list', 'receipt', 'complaint', 'edit', 'cancel'
   BookingData? _selectedBooking;
@@ -47,10 +49,18 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     BookingsRepository.init();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      final bSuccess = await BookingsRepository.syncBookingsFromCloud();
+      final cSuccess = await BookingsRepository.syncComplaintsFromCloud();
+      if ((bSuccess || cSuccess) && mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _tabController.dispose();
     _complaintDescriptionController.dispose();
     _editedAddressController.dispose();

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'navigation/app_router.dart';
 import 'data/user_database.dart';
+import 'data/bookings_repository.dart';
+import 'data/document_database.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   UserDatabase.init();
+  BookingsRepository.init();
+  DocumentDatabase.syncFromCloudWithInfo();
   runApp(const KhidmatAiApp());
 }
 
