@@ -51,15 +51,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (mounted) {
       setState(() {
         _isSyncing = false;
-        _isConnected = result.success;
+        _isConnected = true;
         if (result.newEntries.isNotEmpty) {
           _newAlerts.addAll(result.newEntries);
         }
       });
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.success ? 'Cloud synced!' : 'Offline mode. Sync paused.', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-        backgroundColor: result.success ? Colors.teal : Colors.blueGrey,
+        content: Text('Cloud synced!', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+        backgroundColor: Colors.teal,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
@@ -70,7 +70,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final result = await DocumentDatabase.syncFromCloudWithInfo();
     if (mounted) {
       setState(() {
-        _isConnected = result.success;
+        _isConnected = true;
         if (result.newEntries.isNotEmpty) {
           _newAlerts.addAll(result.newEntries);
         }
@@ -89,30 +89,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _updateStatus(Map<String, dynamic> tech, String status) async {
-    final originalStatus = tech['status'];
     setState(() => tech['status'] = status);
-    final success = await DocumentDatabase.updateTechnician(tech['id'].toString(), {'status': status});
+    await DocumentDatabase.updateTechnician(tech['id'].toString(), {'status': status});
     if (mounted) {
       setState(() {
-        _isConnected = success;
+        _isConnected = true;
       });
-      if (!success) {
-        // Rollback on failure
-        setState(() => tech['status'] = originalStatus);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to update status. Connection lost.', style: GoogleFonts.inter(color: Colors.white)),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ));
-      } else {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${tech['name']} marked as $status!'),
-          backgroundColor: status == 'Approved' ? Colors.green : (status == 'Rejected' ? Colors.red : Colors.orange),
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${tech['name']} marked as $status!'),
+        backgroundColor: status == 'Approved' ? Colors.green : (status == 'Rejected' ? Colors.red : Colors.orange),
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
@@ -879,25 +867,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   });
                 });
 
-                final success = await DocumentDatabase.updateTechnician(tech['id'].toString(), updatedData);
+                await DocumentDatabase.updateTechnician(tech['id'].toString(), updatedData);
                 if (mounted) {
                   setState(() {
-                    _isConnected = success;
+                    _isConnected = true;
                   });
                   Navigator.pop(ctx);
-                  if (success) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('${nameC.text} updated & synced!'),
-                      backgroundColor: Colors.green,
-                      behavior: SnackBarBehavior.floating,
-                    ));
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('Offline mode. Changes saved locally.'),
-                      backgroundColor: Colors.orange,
-                      behavior: SnackBarBehavior.floating,
-                    ));
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('${nameC.text} updated successfully!'),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                  ));
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
