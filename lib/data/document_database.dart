@@ -38,12 +38,16 @@ class DocumentDatabase {
   // Track the last known count for new-application detection
   static int _lastKnownCount = 0;
 
+  // Track known IDs to prevent duplicate alerts
+  static Set<String> _knownIds = {};
+
   // Master database of all onboarded technicians with Local + Cloud Sync
   static List<Map<String, dynamic>> get onboardedTechnicians {
     if (_cachedTechnicians == null) {
       _cachedTechnicians = [];
       _loadFromLocalStorage();
       _lastKnownCount = _cachedTechnicians!.length;
+      _knownIds = _cachedTechnicians!.map((t) => t['id']?.toString() ?? '').toSet();
     }
     return _cachedTechnicians!;
   }
@@ -65,17 +69,38 @@ class DocumentDatabase {
     _lastKnownCount = onboardedTechnicians.length;
   }
 
-  // Update a technician record by ID
-  static void updateTechnician(String id, Map<String, dynamic> updatedData) {
-    final list = onboardedTechnicians;
-    final index = list.indexWhere((t) => t['id']?.toString() == id);
-    if (index != -1) {
-      // Merge updated fields into the existing record
-      updatedData.forEach((key, value) {
-        list[index][key] = value;
-      });
-      persistChanges();
-      syncToCloud();
+  // Update a technician record by ID securely (Cloud transaction style)
+  static Future<bool> updateTechnician(String id, Map<String, dynamic> updatedData) async {
+    try {
+      // 1. Always pull latest from cloud first
+      final response = await http.get(Uri.parse(_cloudUrl));
+      if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(response.body);
+        final list = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+
+        final index = list.indexWhere((t) => t['id']?.toString() == id);
+        if (index != -1) {
+          updatedData.forEach((key, value) {
+            list[index][key] = value;
+          });
+          
+          // 2. Put back to cloud
+          final putResponse = await http.put(
+            Uri.parse(_cloudUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(list),
+          );
+
+          if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
+            _cachedTechnicians = list;
+            persistChanges();
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -167,7 +192,6 @@ class DocumentDatabase {
   // Pull latest registrations from Cloud Database
   // Returns a SyncResult with success status and list of new entries
   static Future<SyncResult> syncFromCloudWithInfo() async {
-    final previousCount = onboardedTechnicians.length;
     try {
       final response = await http.get(Uri.parse(_cloudUrl));
       if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
@@ -175,24 +199,24 @@ class DocumentDatabase {
         if (decoded.isNotEmpty) {
           final cloudList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
           
-          // Merge logic
-          final Map<String, Map<String, dynamic>> mergedMap = {};
-          
-          for (var item in cloudList) {
-            final String? id = item['id']?.toString();
-            if (id != null) mergedMap[id] = item;
+          // Initialize known IDs if not done yet
+          if (_knownIds.isEmpty) {
+            _knownIds = onboardedTechnicians.map((t) => t['id']?.toString() ?? '').toSet();
           }
-          
-          final currentLocal = onboardedTechnicians;
-          for (var item in currentLocal) {
-            final String? id = item['id']?.toString();
-            if (id != null && !mergedMap.containsKey(id)) {
-              mergedMap[id] = item;
+
+          // Detect new entries using unique IDs
+          final List<Map<String, dynamic>> newEntries = [];
+          for (var item in cloudList) {
+            final String id = item['id']?.toString() ?? '';
+            if (id.isNotEmpty && !_knownIds.contains(id)) {
+              if (item['status'] == 'Pending Approval') {
+                newEntries.add(item);
+              }
+              _knownIds.add(id);
             }
           }
 
-          _cachedTechnicians = mergedMap.values.toList();
-          
+          _cachedTechnicians = cloudList;
           _cachedTechnicians!.sort((a, b) {
             final int idA = int.tryParse(a['id']?.toString() ?? '0') ?? 0;
             final int idB = int.tryParse(b['id']?.toString() ?? '0') ?? 0;
@@ -200,13 +224,7 @@ class DocumentDatabase {
           });
 
           persistChanges();
-
-          // Detect new entries
-          final newCount = _cachedTechnicians!.length - previousCount;
-          List<Map<String, dynamic>> newEntries = [];
-          if (newCount > 0) {
-            newEntries = _cachedTechnicians!.sublist(previousCount);
-          }
+          _lastKnownCount = _cachedTechnicians!.length;
 
           return SyncResult(success: true, newEntries: newEntries);
         }
@@ -254,59 +272,93 @@ class DocumentDatabase {
     certificationSize = certSize;
   }
 
-  static void addOnboardedTechnician() {
-    final list = onboardedTechnicians;
-    
-    list.add({
-      'id': (list.length + 101).toString(),
-      'name': currentName ?? 'New Technician',
-      'cnic': currentCnic ?? 'N/A',
-      'phone': currentPhone ?? 'N/A',
-      'category': currentCategory ?? 'General Trades',
-      'experience': currentExperience ?? 3,
-      'area': currentArea ?? 'Sector G-11',
-      'city': 'Islamabad',
-      'hourlyRate': currentRate ?? 1000,
-      'status': 'Pending Approval',
-      'adminNotes': '',
-      // Dynamic base64 documents & metadata
-      'cnicFront': cnicFront,
-      'cnicFrontName': cnicFrontName,
-      'cnicFrontSize': cnicFrontSize,
-      'cnicBack': cnicBack,
-      'cnicBackName': cnicBackName,
-      'cnicBackSize': cnicBackSize,
-      'profilePhoto': profilePhoto,
-      'profilePhotoName': profilePhotoName,
-      'profilePhotoSize': profilePhotoSize,
-      'certification': certification,
-      'certificationName': certificationName,
-      'certificationSize': certificationSize,
-    });
-    
-    persistChanges();
-    syncToCloud();
-    
-    // Clear temporary wizard variables
-    currentName = null;
-    currentCnic = null;
-    currentPhone = null;
-    currentCategory = null;
-    currentExperience = null;
-    currentArea = null;
-    currentRate = null;
-    cnicFront = null;
-    cnicFrontName = null;
-    cnicFrontSize = null;
-    cnicBack = null;
-    cnicBackName = null;
-    cnicBackSize = null;
-    profilePhoto = null;
-    profilePhotoName = null;
-    profilePhotoSize = null;
-    certification = null;
-    certificationName = null;
-    certificationSize = null;
+  static Future<bool> addOnboardedTechnician() async {
+    try {
+      // 1. Fetch latest list from cloud first to avoid race overwrites
+      final response = await http.get(Uri.parse(_cloudUrl));
+      List<Map<String, dynamic>> list = [];
+      if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(response.body);
+        list = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+
+      // Generate a unique ID based on max ID in the list
+      int maxId = 100;
+      for (var tech in list) {
+        final idInt = int.tryParse(tech['id']?.toString() ?? '');
+        if (idInt != null && idInt > maxId) {
+          maxId = idInt;
+        }
+      }
+      final newId = (maxId + 1).toString();
+
+      final newTech = {
+        'id': newId,
+        'name': currentName ?? 'New Technician',
+        'cnic': currentCnic ?? 'N/A',
+        'phone': currentPhone ?? 'N/A',
+        'category': currentCategory ?? 'General Trades',
+        'experience': currentExperience ?? 3,
+        'area': currentArea ?? 'Sector G-11',
+        'city': 'Islamabad',
+        'hourlyRate': currentRate ?? 1000,
+        'status': 'Pending Approval',
+        'adminNotes': '',
+        // Dynamic base64 documents & metadata
+        'cnicFront': cnicFront,
+        'cnicFrontName': cnicFrontName,
+        'cnicFrontSize': cnicFrontSize,
+        'cnicBack': cnicBack,
+        'cnicBackName': cnicBackName,
+        'cnicBackSize': cnicBackSize,
+        'profilePhoto': profilePhoto,
+        'profilePhotoName': profilePhotoName,
+        'profilePhotoSize': profilePhotoSize,
+        'certification': certification,
+        'certificationName': certificationName,
+        'certificationSize': certificationSize,
+      };
+
+      list.add(newTech);
+
+      // 2. Put back to cloud
+      final putResponse = await http.put(
+        Uri.parse(_cloudUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(list),
+      );
+
+      if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
+        _cachedTechnicians = list;
+        persistChanges();
+
+        // Clear temporary wizard variables
+        currentName = null;
+        currentCnic = null;
+        currentPhone = null;
+        currentCategory = null;
+        currentExperience = null;
+        currentArea = null;
+        currentRate = null;
+        cnicFront = null;
+        cnicFrontName = null;
+        cnicFrontSize = null;
+        cnicBack = null;
+        cnicBackName = null;
+        cnicBackSize = null;
+        profilePhoto = null;
+        profilePhotoName = null;
+        profilePhotoSize = null;
+        certification = null;
+        certificationName = null;
+        certificationSize = null;
+
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 }
 

@@ -17,6 +17,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _selectedStatusFilter = 'All';
   String _searchQuery = '';
   bool _isSyncing = false;
+  bool _isConnected = true;
   String _activeNav = 'Dashboard Overview';
   Timer? _pollTimer;
   List<Map<String, dynamic>> _newAlerts = [];
@@ -46,13 +47,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _syncWithCloud() async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
-    final success = await DocumentDatabase.syncFromCloud();
+    final result = await DocumentDatabase.syncFromCloudWithInfo();
     if (mounted) {
-      setState(() => _isSyncing = false);
+      setState(() {
+        _isSyncing = false;
+        _isConnected = result.success;
+        if (result.newEntries.isNotEmpty) {
+          _newAlerts.addAll(result.newEntries);
+        }
+      });
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success ? 'Cloud synced!' : 'Offline mode.', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-        backgroundColor: success ? Colors.teal : Colors.blueGrey,
+        content: Text(result.success ? 'Cloud synced!' : 'Offline mode. Sync paused.', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+        backgroundColor: result.success ? Colors.teal : Colors.blueGrey,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
@@ -61,12 +68,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _pollForUpdates() async {
     final result = await DocumentDatabase.syncFromCloudWithInfo();
-    if (mounted && result.newEntries.isNotEmpty) {
+    if (mounted) {
       setState(() {
-        _newAlerts.addAll(result.newEntries);
+        _isConnected = result.success;
+        if (result.newEntries.isNotEmpty) {
+          _newAlerts.addAll(result.newEntries);
+        }
       });
-    } else if (mounted) {
-      setState(() {});
     }
   }
 
@@ -80,16 +88,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     anchor.remove();
   }
 
-  void _updateStatus(Map<String, dynamic> tech, String status) {
+  Future<void> _updateStatus(Map<String, dynamic> tech, String status) async {
+    final originalStatus = tech['status'];
     setState(() => tech['status'] = status);
-    DocumentDatabase.persistChanges();
-    DocumentDatabase.syncToCloud();
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${tech['name']} marked as $status!'),
-      backgroundColor: status == 'Approved' ? Colors.green : (status == 'Rejected' ? Colors.red : Colors.orange),
-      behavior: SnackBarBehavior.floating,
-    ));
+    final success = await DocumentDatabase.updateTechnician(tech['id'].toString(), {'status': status});
+    if (mounted) {
+      setState(() {
+        _isConnected = success;
+      });
+      if (!success) {
+        // Rollback on failure
+        setState(() => tech['status'] = originalStatus);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to update status. Connection lost.', style: GoogleFonts.inter(color: Colors.white)),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${tech['name']} marked as $status!'),
+          backgroundColor: status == 'Approved' ? Colors.green : (status == 'Rejected' ? Colors.red : Colors.orange),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   void _onNavTap(String label) {
@@ -212,10 +236,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ])
           : Text('Worker Management Dashboard', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
       actions: [
-        // Sync
-        _isSyncing
-            ? const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))))
-            : IconButton(icon: const Icon(Icons.cloud_sync, color: AppColors.primary), tooltip: 'Sync Now', onPressed: _syncWithCloud),
+        // Sync Indicator
+        InkWell(
+          onTap: _syncWithCloud,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _isConnected
+                    ? const PulsingDot(color: Colors.green)
+                    : Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red,
+                        ),
+                      ),
+                const SizedBox(width: 6),
+                Text(
+                  _isConnected ? 'Connected' : 'Sync Paused',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _isConnected ? Colors.green.shade700 : Colors.red.shade700,
+                  ),
+                ),
+                if (_isSyncing) ...[
+                  const SizedBox(width: 6),
+                  const SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary)),
+                ],
+              ],
+            ),
+          ),
+        ),
         // Notification Bell
         Stack(children: [
           IconButton(
@@ -287,6 +343,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       // New application alert banner
       if (_newAlerts.isNotEmpty)
         _buildAlertBanner(),
+      // Offline warning banner
+      if (!_isConnected)
+        _buildOfflineBanner(),
       // Stats row
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -382,6 +441,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       Expanded(child: Column(children: [
         _buildTopBar(pending, false),
         if (_newAlerts.isNotEmpty) _buildAlertBanner(),
+        if (!_isConnected) _buildOfflineBanner(),
         Expanded(child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -612,11 +672,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Text('ACTIONS', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primary)),
             const SizedBox(height: 12),
             if (isPending || isResub) ...[
-              _fullBtn('Approve & Onboard', Colors.green, () { _updateStatus(tech, 'Approved'); setDialogState(() {}); setState(() {}); }),
+              _fullBtn('Approve & Onboard', Colors.green, () async { await _updateStatus(tech, 'Approved'); setDialogState(() {}); setState(() {}); }),
               const SizedBox(height: 8),
-              _fullBtn('Reject Application', Colors.red, () { _updateStatus(tech, 'Rejected'); setDialogState(() {}); setState(() {}); }),
+              _fullBtn('Reject Application', Colors.red, () async { await _updateStatus(tech, 'Rejected'); setDialogState(() {}); setState(() {}); }),
               const SizedBox(height: 8),
-              _fullBtn('Request Resubmission', Colors.orange, () { _updateStatus(tech, 'Resubmission Requested'); setDialogState(() {}); setState(() {}); }),
+              _fullBtn('Request Resubmission', Colors.orange, () async { await _updateStatus(tech, 'Resubmission Requested'); setDialogState(() {}); setState(() {}); }),
             ] else ...[
               Container(
                 padding: const EdgeInsets.all(14),
@@ -799,17 +859,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.w600))),
             ElevatedButton(
-              onPressed: () {
-                DocumentDatabase.updateTechnician(tech['id'].toString(), {
-                  'name': nameC.text, 'phone': phoneC.text, 'cnic': cnicC.text,
+              onPressed: () async {
+                final updatedData = {
+                  'name': nameC.text,
+                  'phone': phoneC.text,
+                  'cnic': cnicC.text,
                   'category': selectedCategory,
                   'experience': int.tryParse(expC.text) ?? tech['experience'],
                   'hourlyRate': int.tryParse(rateC.text) ?? tech['hourlyRate'],
-                  'area': areaC.text, 'city': cityC.text, 'adminNotes': notesC.text,
+                  'area': areaC.text,
+                  'city': cityC.text,
+                  'adminNotes': notesC.text,
+                };
+
+                // Optimistic local update
+                setState(() {
+                  updatedData.forEach((key, value) {
+                    tech[key] = value;
+                  });
                 });
-                setState(() {});
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${nameC.text} updated & synced!'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
+
+                final success = await DocumentDatabase.updateTechnician(tech['id'].toString(), updatedData);
+                if (mounted) {
+                  setState(() {
+                    _isConnected = success;
+                  });
+                  Navigator.pop(ctx);
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('${nameC.text} updated & synced!'),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Offline mode. Changes saved locally.'),
+                      backgroundColor: Colors.orange,
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                  }
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
               child: Text('Save Changes', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
@@ -821,6 +910,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // ─── HELPERS ───
+  Widget _buildOfflineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        border: Border(bottom: BorderSide(color: Colors.red.shade100)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.wifi_off, color: Colors.red, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'You are currently offline. New applications may not appear until connection is restored.',
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade900),
+          ),
+        ),
+      ]),
+    );
+  }
+
   Widget _detailRow(String label, String value) {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(children: [
       Text('$label: ', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.onSurfaceVariant)),
@@ -853,4 +963,61 @@ class _NavItem {
   final String label;
   final IconData icon;
   const _NavItem(this.label, this.icon);
+}
+
+class PulsingDot extends StatefulWidget {
+  final Color color;
+  const PulsingDot({super.key, required this.color});
+
+  @override
+  State<PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<PulsingDot> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.color.withOpacity(0.4 * (1.0 - _controller.value)),
+              ),
+            ),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.color,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }

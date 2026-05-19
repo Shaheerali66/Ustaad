@@ -14,6 +14,7 @@ class TechDocumentsScreen extends StatefulWidget {
 }
 
 class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
+  bool _isSubmitting = false;
   String? cnicFrontFile;
   String? cnicFrontName;
   int? cnicFrontSize;
@@ -102,7 +103,10 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
     anchor.remove();
   }
 
-  void _submitApplication() {
+  void _submitApplication() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+
     // Save to Database
     DocumentDatabase.saveDocuments(
       front: cnicFrontFile,
@@ -119,17 +123,30 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
       certSize: certSize,
     );
 
-    // Merge into the global onboarded list!
-    DocumentDatabase.addOnboardedTechnician();
+    // Upload to cloud real-time database
+    final success = await DocumentDatabase.addOnboardedTechnician();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Application submitted successfully! Stored in master backend directory.'),
-        backgroundColor: Colors.teal,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    context.go('/technician/home');
+    if (mounted) {
+      setState(() => _isSubmitting = false);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Application submitted successfully! Stored in master cloud database.'),
+            backgroundColor: Colors.teal,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        context.go('/technician/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection failed. Please check your internet connection and try again.'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   String _formatSize(int? bytes) {
@@ -399,7 +416,7 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _submitApplication,
+              onPressed: _isSubmitting ? null : _submitApplication,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: AppColors.primary,
@@ -407,7 +424,9 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
-              child: Text('Submit Application', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: _isSubmitting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('Submit Application', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 12),
