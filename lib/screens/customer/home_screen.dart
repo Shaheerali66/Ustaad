@@ -287,12 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
               else if (label == 'Beautician') cat = 'Beauty Services';
               else if (label == 'Home Svcs') cat = 'Cleaning Services';
 
-              context.go('/customer/ai-processing', extra: {
-                'service': cat,
-                'work': '$cat required',
-                'location': 'DHA Phase 5, Lahore', // Default to Lahore
-                'time': 'Tomorrow Morning (~10:00 AM)',
-              });
+              context.go('/customer/quick-service-form', extra: cat);
             },
             child: Container(
               width: 80,

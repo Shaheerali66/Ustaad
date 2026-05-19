@@ -12,6 +12,7 @@ import '../screens/customer/my_bookings_screen.dart';
 import '../screens/customer/follow_up_screen.dart';
 import '../screens/customer/ai_reasoning_logs_screen.dart';
 import '../screens/customer/profile_screen.dart';
+import '../screens/customer/quick_service_form_screen.dart';
 import '../screens/technician/tech_dashboard_screen.dart';
 import '../screens/technician/tech_registration_screen.dart';
 import '../screens/technician/tech_service_info_screen.dart';
@@ -58,6 +59,7 @@ final GoRouter appRouter = GoRouter(
     ),
 
     // Customer standalone screens (no bottom nav)
+    GoRoute(path: '/customer/quick-service-form', builder: (context, state) => QuickServiceFormScreen(category: state.extra as String?)),
     GoRoute(path: '/customer/request-summary', builder: (context, state) => RequestSummaryScreen(queryText: state.extra as String?)),
     GoRoute(path: '/customer/ai-processing', builder: (context, state) => AiProcessingScreen(bookingDetails: _getBookingDetails(state.extra))),
     GoRoute(path: '/customer/provider-discovery', builder: (context, state) => ProviderDiscoveryScreen(bookingDetails: _getBookingDetails(state.extra))),

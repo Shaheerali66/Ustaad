@@ -7,17 +7,25 @@ import '../../data/technicians_data.dart';
 import '../../data/bookings_repository.dart';
 import '../../data/document_database.dart';
 
-class ProviderDiscoveryScreen extends StatelessWidget {
+class ProviderDiscoveryScreen extends StatefulWidget {
   final Map<String, dynamic>? bookingDetails;
 
   const ProviderDiscoveryScreen({super.key, this.bookingDetails});
 
   @override
+  State<ProviderDiscoveryScreen> createState() => _ProviderDiscoveryScreenState();
+}
+
+class _ProviderDiscoveryScreenState extends State<ProviderDiscoveryScreen> {
+  String _selectedSort = 'Rating'; // Options: 'Distance', 'Rating', 'Availability', 'Price'
+  bool _expandSearch = false; // Set to true when user gives explicit consent to expand search
+  
+  @override
   Widget build(BuildContext context) {
-    final selectedCategory = (bookingDetails?['service'] ?? 'AC Services').toString();
-    final locationText = (bookingDetails?['location'] ?? 'Sector G-13, Islamabad').toString();
-    final workText = (bookingDetails?['work'] ?? 'AC servicing and cleaning').toString();
-    final timeText = (bookingDetails?['time'] ?? 'Tomorrow Morning (~10:00 AM)').toString();
+    final selectedCategory = (widget.bookingDetails?['service'] ?? 'AC Services').toString();
+    final locationText = (widget.bookingDetails?['location'] ?? 'Sector G-13, Islamabad').toString();
+    final workText = (widget.bookingDetails?['work'] ?? 'AC servicing and cleaning').toString();
+    final timeText = (widget.bookingDetails?['time'] ?? 'Tomorrow Morning (~10:00 AM)').toString();
 
     final lowerLoc = locationText.toLowerCase();
     final lowerWork = workText.toLowerCase();
@@ -38,35 +46,28 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                lowerWork.contains('islamabad') || lowerWork.contains('isb')) {
       targetCity = 'Islamabad';
     } else {
-      // Fallback area based detection in location/work texts
-      if (lowerLoc.contains('gulberg') || lowerLoc.contains('model') || lowerLoc.contains('johar') ||
-          lowerWork.contains('gulberg') || lowerWork.contains('model') || lowerWork.contains('johar')) {
+      // Fallback area based detection
+      if (lowerLoc.contains('gulberg') || lowerLoc.contains('model') || lowerLoc.contains('johar')) {
         targetCity = 'Lahore';
-      } else if (lowerLoc.contains('clifton') || lowerLoc.contains('gulshan') || lowerLoc.contains('saddar') ||
-                 lowerWork.contains('clifton') || lowerWork.contains('gulshan') || lowerWork.contains('saddar')) {
+      } else if (lowerLoc.contains('clifton') || lowerLoc.contains('gulshan') || lowerLoc.contains('saddar')) {
         targetCity = 'Karachi';
-      } else if (lowerLoc.contains('latifabad') || lowerWork.contains('latifabad')) {
+      } else if (lowerLoc.contains('latifabad')) {
         targetCity = 'Hyderabad';
-      } else if (lowerLoc.contains('g-13') || lowerLoc.contains('f-10') || lowerLoc.contains('f-8') ||
-                 lowerWork.contains('g-13') || lowerWork.contains('f-10') || lowerWork.contains('f-8')) {
+      } else if (lowerLoc.contains('g-13') || lowerLoc.contains('f-10') || lowerLoc.contains('f-8')) {
         targetCity = 'Islamabad';
       }
     }
 
     // Filter technicians STRICTLY based on the targeted City first (Mandatory)
-    List<Map<String, dynamic>> filteredTechs = [];
+    List<Map<String, dynamic>> allTechs = [];
     
     // Add default seeds from Excel
-    filteredTechs.addAll(TechnicianDataset.technicians.where((tech) {
-      final city = (tech['city'] ?? '').toString().toLowerCase();
-      return city == targetCity.toLowerCase();
-    }));
+    allTechs.addAll(TechnicianDataset.technicians.map((t) => Map<String, dynamic>.from(t)));
 
     // Add Approved Dynamic Cloud Onboarded Technicians!
     final dynamicTechs = DocumentDatabase.onboardedTechnicians.where((tech) {
-      final city = (tech['city'] ?? 'Islamabad').toString().toLowerCase();
       final isApproved = tech['status'] == 'Approved';
-      return isApproved && city == targetCity.toLowerCase();
+      return isApproved;
     }).map((t) => {
       'id': int.tryParse(t['id']?.toString() ?? '1000') ?? 1000,
       'name': t['name'],
@@ -90,9 +91,21 @@ class ProviderDiscoveryScreen extends StatelessWidget {
       'profilePhoto': t['profilePhoto'],
     });
 
-    filteredTechs.addAll(dynamicTechs);
+    allTechs.addAll(dynamicTechs);
 
-    // Among those strictly in this city, filter strictly by Category or SubService
+    // Apply strict city filtering unless search is explicitly expanded with user consent
+    List<Map<String, dynamic>> filteredTechs = allTechs.where((tech) {
+      final city = (tech['city'] ?? '').toString().toLowerCase();
+      
+      if (_expandSearch) {
+        // Broaden search parameters (user gave explicit consent)
+        return true;
+      }
+      // Strict location filter
+      return city == targetCity.toLowerCase();
+    }).toList();
+
+    // Among those city-filtered technicians, filter strictly by Category / SubService
     filteredTechs = filteredTechs.where((tech) {
       final techCat = (tech['category'] ?? '').toString().toLowerCase();
       final targetCat = selectedCategory.toLowerCase();
@@ -101,30 +114,48 @@ class ProviderDiscoveryScreen extends StatelessWidget {
       return techCat == targetCat || matchCat == targetCat || techCat.contains(targetCat) || targetCat.contains(techCat);
     }).toList();
 
-    // Sort technicians based on AI ranking: ratings (highest first), completed jobs (highest first), experience (highest first), then hourlyRate (lowest first)
-    filteredTechs.sort((a, b) {
-      final aRating = double.tryParse(a['rating']?.toString() ?? '') ?? 0.0;
-      final bRating = double.tryParse(b['rating']?.toString() ?? '') ?? 0.0;
-      if (aRating != bRating) {
+    // Deterministic distance generator based on whether the tech area matches locationText
+    for (var tech in filteredTechs) {
+      final techArea = (tech['area'] ?? '').toString().toLowerCase();
+      final techCity = (tech['city'] ?? '').toString().toLowerCase();
+      final isSameCity = techCity == targetCity.toLowerCase();
+      
+      if (!isSameCity) {
+        // Far away because it's another city (regional search expansion)
+        tech['distance'] = 22.0 + (tech['name'].toString().length % 5) * 4.5;
+      } else if (lowerLoc.contains(techArea) || techArea.contains(lowerLoc)) {
+        tech['distance'] = 0.5 + (tech['name'].toString().length % 3) * 0.3;
+      } else {
+        tech['distance'] = 1.8 + (tech['name'].toString().length % 6) * 0.4;
+      }
+    }
+
+    // Sort technicians based on active sort selector
+    if (_selectedSort == 'Rating') {
+      filteredTechs.sort((a, b) {
+        final aRating = double.tryParse(a['rating']?.toString() ?? '') ?? 0.0;
+        final bRating = double.tryParse(b['rating']?.toString() ?? '') ?? 0.0;
         return bRating.compareTo(aRating);
-      }
-
-      final aJobs = int.tryParse(a['completedJobs']?.toString() ?? '') ?? 0;
-      final bJobs = int.tryParse(b['completedJobs']?.toString() ?? '') ?? 0;
-      if (aJobs != bJobs) {
-        return bJobs.compareTo(aJobs);
-      }
-
-      final aExp = int.tryParse(a['experience']?.toString() ?? '') ?? 0;
-      final bExp = int.tryParse(b['experience']?.toString() ?? '') ?? 0;
-      if (aExp != bExp) {
-        return bExp.compareTo(aExp);
-      }
-
-      final aRate = double.tryParse(a['hourlyRate']?.toString() ?? '') ?? 1000.0;
-      final bRate = double.tryParse(b['hourlyRate']?.toString() ?? '') ?? 1000.0;
-      return aRate.compareTo(bRate);
-    });
+      });
+    } else if (_selectedSort == 'Distance') {
+      filteredTechs.sort((a, b) {
+        final aDist = double.tryParse(a['distance']?.toString() ?? '') ?? 999.0;
+        final bDist = double.tryParse(b['distance']?.toString() ?? '') ?? 999.0;
+        return aDist.compareTo(bDist);
+      });
+    } else if (_selectedSort == 'Availability') {
+      filteredTechs.sort((a, b) {
+        final aAvail = a['availability']?.toString() == 'Available' ? 1 : 0;
+        final bAvail = b['availability']?.toString() == 'Available' ? 1 : 0;
+        return bAvail.compareTo(aAvail);
+      });
+    } else if (_selectedSort == 'Price') {
+      filteredTechs.sort((a, b) {
+        final aRate = double.tryParse(a['hourlyRate']?.toString() ?? '') ?? 9999.0;
+        final bRate = double.tryParse(b['hourlyRate']?.toString() ?? '') ?? 9999.0;
+        return aRate.compareTo(bRate);
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -135,13 +166,21 @@ class ProviderDiscoveryScreen extends StatelessWidget {
         title: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.onSurfaceVariant),
+              icon: const Icon(Icons.arrow_back, color: AppColors.onSurface),
               onPressed: () => context.go('/customer/home'),
             ),
             const Spacer(),
-            Text('Khidmat AI Matches', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
+            Text(
+              'Top Providers in $targetCity',
+              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
+            ),
             const Spacer(),
-            const Icon(Icons.location_on_outlined, color: AppColors.onSurfaceVariant),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: AppColors.primary),
+              onPressed: () {
+                setState(() {});
+              },
+            ),
           ],
         ),
       ),
@@ -156,55 +195,88 @@ class ProviderDiscoveryScreen extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [AppColors.primary, AppColors.surfaceTint]),
+                gradient: const LinearGradient(colors: [AppColors.primary, AppColors.surfaceTint]),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 4))],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                      const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
                       const SizedBox(width: 6),
                       Text(
-                        'AI MATCH CRITERIA',
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.8), letterSpacing: 1.0),
+                        'ACTIVE ISOLATED SEARCH FILTER',
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.8), letterSpacing: 0.8),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text('Service: $selectedCategory', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                  Text('Service: $selectedCategory', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       const Icon(Icons.location_on, color: Colors.white, size: 14),
                       const SizedBox(width: 4),
-                      Text(locationText, style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
-                      const Spacer(),
+                      Expanded(
+                        child: Text(
+                          'Location: $locationText ($targetCity region)',
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withOpacity(0.9)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
                       const Icon(Icons.access_time, color: Colors.white, size: 14),
                       const SizedBox(width: 4),
-                      Text(timeText, style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
+                      Text('Schedule: $timeText', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withOpacity(0.9))),
                     ],
                   ),
                 ],
               ),
             ),
 
+            if (_expandSearch)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.amber, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Search boundaries expanded to other cities per your consent.',
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             Text('Verified AI Recommendations', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.onBackground)),
             const SizedBox(height: 4),
             Text(
-              'Found ${filteredTechs.length} certified ${selectedCategory.toLowerCase()} professionals in $targetCity area.',
-              style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
+              'Found ${filteredTechs.length} certified $selectedCategory professionals matching your query.',
+              style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             
             if (filteredTechs.isEmpty)
               _buildNoResultsState(targetCity)
             else ...[
-              // Map location visualization
+              // Simulated map restricting coordinates strictly inside targetCity
               Container(
-                height: 160,
+                height: 180,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
@@ -216,20 +288,31 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: CustomPaint(
-                        size: const Size(double.infinity, 160),
-                        painter: _MiniMapPainter(filteredTechs.length),
+                        size: const Size(double.infinity, 180),
+                        painter: _MiniMapPainter(filteredTechs),
+                      ),
+                    ),
+                    Positioned(
+                      top: 12, right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
+                        child: Text(
+                          '$targetCity Isolated Map',
+                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
                       ),
                     ),
                     Positioned(
                       bottom: 12, left: 12,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.surfaceVariant)),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.surfaceVariant)),
                         child: Row(
                           children: [
                             const Icon(Icons.gps_fixed, size: 14, color: AppColors.primary),
                             const SizedBox(width: 6),
-                            Text('Simulated GPS Radar Active', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
+                            Text('Radar: ${filteredTechs.length} pins loaded', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
                           ],
                         ),
                       ),
@@ -238,10 +321,10 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                 ),
               ),
 
-              // Horizontal Scrollable Filter Bar matching the HTML mockup design
-              _buildFilterBar(),
+              // Interactive sorting tabs
+              _buildInteractiveSortBar(),
 
-              // Provider cards
+              // Provider list
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -253,6 +336,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                   final exp = int.tryParse(tech['experience']?.toString() ?? '') ?? 2;
                   final jobs = int.tryParse(tech['completedJobs']?.toString() ?? '') ?? 0;
                   final rate = int.tryParse(tech['hourlyRate']?.toString() ?? '') ?? 1000;
+                  final dist = tech['distance'] ?? 1.5;
                   
                   final isAvailable = tech['availability']?.toString() == 'Available';
                   final isBgVerified = tech['bgVerified']?.toString() == 'Yes';
@@ -267,6 +351,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                     experience: exp,
                     jobs: jobs,
                     rate: rate,
+                    distance: dist,
                     city: (tech['city'] ?? '').toString(),
                     area: (tech['area'] ?? '').toString(),
                     subService: (tech['subService'] ?? '').toString(),
@@ -290,6 +375,71 @@ class ProviderDiscoveryScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildInteractiveSortBar() {
+    final sortOptions = [
+      ('Rating', Icons.star_border),
+      ('Distance', Icons.directions_run),
+      ('Availability', Icons.check_circle_outline),
+      ('Price', Icons.payments_outlined),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sort Matches By:',
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: sortOptions.map((opt) {
+                final isSelected = _selectedSort == opt.$1;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedSort = opt.$1;
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primaryContainer : AppColors.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.outlineVariant,
+                        width: isSelected ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(opt.$2, size: 14, color: isSelected ? AppColors.onPrimaryContainer : AppColors.onSurfaceVariant),
+                        const SizedBox(width: 6),
+                        Text(
+                          opt.$1,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected ? AppColors.onPrimaryContainer : AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _providerCard({
     required BuildContext context,
     required Map<String, dynamic> tech,
@@ -298,6 +448,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
     required int experience,
     required int jobs,
     required int rate,
+    required double distance,
     required String city,
     required String area,
     required String subService,
@@ -310,7 +461,6 @@ class ProviderDiscoveryScreen extends StatelessWidget {
     required String desc,
     bool isBestMatch = false,
   }) {
-    // Generate initials for avatar fallback (extremely crash-proof)
     String initials = 'W';
     if (name.trim().isNotEmpty) {
       final parts = name.trim().split(RegExp(r'\s+'));
@@ -320,11 +470,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
         initials = (firstChar + secondChar).toUpperCase();
       }
     }
-    if (initials.isEmpty) {
-      initials = 'W';
-    }
 
-    // Beautiful matching avatar color depending on name
     final avatarColor = Colors.primaries[name.length % Colors.primaries.length].shade400;
 
     return Container(
@@ -354,9 +500,9 @@ class ProviderDiscoveryScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isBestMatch) ...[
-            Row(
-              children: [
+          Row(
+            children: [
+              if (isBestMatch) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -379,17 +525,33 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
               ],
-            ),
-            const SizedBox(height: 12),
-          ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${distance.toStringAsFixed(1)} km away',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.secondary,
+                  ),
+                ),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: avatarColor.withValues(alpha: 0.15),
+                backgroundColor: avatarColor.withOpacity(0.15),
                 backgroundImage: tech['profilePhoto'] != null
                     ? MemoryImage(base64Decode(tech['profilePhoto']!.split(',').last))
                     : null,
@@ -405,17 +567,17 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+                    Text(name, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.onSurface)),
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.star, size: 15, color: Colors.amber),
+                        const Icon(Icons.star, size: 14, color: Colors.amber),
                         const SizedBox(width: 2),
                         Text('$rating', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.onSurface)),
                         Text(' • ', style: GoogleFonts.inter(color: AppColors.onSurfaceVariant)),
-                        Text('$experience yrs exp', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant)),
+                        Text('$experience yrs exp', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant)),
                         Text(' • ', style: GoogleFonts.inter(color: AppColors.onSurfaceVariant)),
-                        Text('$jobs jobs completed', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.secondary)),
+                        Text('$jobs jobs completed', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.secondary)),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -426,7 +588,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                         Expanded(
                           child: Text(
                             '$area, $city',
-                            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w500),
+                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -438,7 +600,6 @@ class ProviderDiscoveryScreen extends StatelessWidget {
             ],
           ),
           
-          // Badge row
           const SizedBox(height: 10),
           Wrap(
             spacing: 6,
@@ -451,60 +612,32 @@ class ProviderDiscoveryScreen extends StatelessWidget {
               if (emergency)
                 _verifBadge('24/7 Emergency', Colors.red.shade700, Colors.red.shade50),
               if (available)
-                _verifBadge('Available Today', AppColors.primary, AppColors.primaryContainer.withValues(alpha: 0.15)),
+                _verifBadge('Available Today', AppColors.primary, AppColors.primaryContainer.withOpacity(0.12)),
             ],
           ),
 
-          // Dynamic AI Recommendation Box ("Why Recommended") from the mockup
+          // WHY RECOMMENDED Badge
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F7FF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withOpacity(0.08)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.lightbulb_outline, size: 18, color: Colors.amber),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppColors.onSurface),
-                      children: [
-                        TextSpan(
-                          text: 'Why Recommended: ',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.primary),
-                        ),
-                        TextSpan(
-                          text: name.contains("Ali")
-                              ? "Highly rated for punctuality and specializes in split AC maintenance. $jobs successful jobs in your area this month."
-                              : name.contains("Bilal")
-                                  ? "Recognized for rapid response and specialized diagnostic tools. $jobs successful jobs completed in Lahore."
-                                  : "Highly rated for premium $subService. $jobs successful jobs completed with $rating star average.",
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          _WhyRecommendedWidget(
+            name: name,
+            subService: subService,
+            rating: rating,
+            jobs: jobs,
+            distance: distance,
           ),
 
           const Divider(height: 24, color: AppColors.surfaceVariant),
 
-          // Price & Full-Width Action Buttons Row side-by-side
+          // Price & Buttons Row
           Row(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('HOURLY RATE', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant, letterSpacing: 0.5)),
+                  Text('HOURLY RATE', style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant, letterSpacing: 0.5)),
                   Text(
                     'Rs. $rate / hr',
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary),
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary),
                   ),
                 ],
               ),
@@ -516,7 +649,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: () {
                           IconData catIcon = Icons.build;
-                          final catLower = (tech['category'] ?? '').toString().toLowerCase();
+                          final catLower = subService.toLowerCase();
                           if (catLower.contains('ac')) {
                             catIcon = Icons.hvac;
                           } else if (catLower.contains('plumb')) {
@@ -531,9 +664,9 @@ class ProviderDiscoveryScreen extends StatelessWidget {
 
                           BookingsRepository.addBooking(
                             BookingData(
-                              title: tech['category']?.toString() ?? 'Service Match',
+                              title: subService,
                               provider: 'Provider: $name',
-                              date: 'Tomorrow, 10:00 AM',
+                              date: '${widget.bookingDetails?['date'] ?? 'Tomorrow'}, ${widget.bookingDetails?['time'] ?? '10:00 AM'}',
                               status: 'Confirmed',
                               statusColor: AppColors.primary,
                               action: 'Track',
@@ -544,7 +677,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                           context.go('/customer/bookings');
                         },
                         icon: const Icon(Icons.calendar_month, size: 14, color: Colors.white),
-                        label: Text('Book Now', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+                        label: Text('Book Now', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 11)),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           backgroundColor: AppColors.primary,
@@ -565,7 +698,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
                         ),
                         child: Text(
                           'View Profile',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: const Color(0xFF00714C)),
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 11, color: const Color(0xFF00714C)),
                         ),
                       ),
                     ),
@@ -585,65 +718,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
       child: Text(
         label,
-        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: color),
-      ),
-    );
-  }
-
-  Widget _buildFilterBar() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Row(
-          children: [
-            _filterChip(Icons.tune, 'Filters', active: true),
-            const SizedBox(width: 8),
-            _filterChip(Icons.expand_more, 'Distance', trailing: true),
-            const SizedBox(width: 8),
-            _filterChip(null, 'Rating 4.0+'),
-            const SizedBox(width: 8),
-            _filterChip(Icons.expand_more, 'Availability', trailing: true),
-            const SizedBox(width: 8),
-            _filterChip(Icons.expand_more, 'Price', trailing: true),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _filterChip(IconData? icon, String label, {bool active = false, bool trailing = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: active ? AppColors.primaryContainer.withOpacity(0.15) : AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: active ? AppColors.primary : AppColors.outlineVariant,
-          width: active ? 1.5 : 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null && !trailing) ...[
-            Icon(icon, size: 16, color: active ? AppColors.primary : AppColors.onSurfaceVariant),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: active ? AppColors.primary : AppColors.onSurfaceVariant,
-            ),
-          ),
-          if (icon != null && trailing) ...[
-            const SizedBox(width: 4),
-            Icon(icon, size: 16, color: AppColors.onSurfaceVariant),
-          ],
-        ],
+        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color),
       ),
     );
   }
@@ -659,7 +734,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
         border: Border.all(color: AppColors.surfaceVariant, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -671,7 +746,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.errorContainer.withValues(alpha: 0.15),
+              color: AppColors.errorContainer.withOpacity(0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -682,7 +757,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'No Results Found in $city',
+            'No Providers in $city',
             style: GoogleFonts.inter(
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -692,7 +767,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'We currently do not have any registered service providers for this service in the $city area. Please try a different service or check back later.',
+            'We currently do not have any registered service providers for this service in the $city area. Would you like to expand your search area to find regional service providers?',
             style: GoogleFonts.inter(
               fontSize: 14,
               color: AppColors.onSurfaceVariant,
@@ -700,6 +775,36 @@ class ProviderDiscoveryScreen extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _expandSearch = true;
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text(
+                'Expand Search Area',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => context.go('/customer/home'),
+            child: Text(
+              'Back to Dashboard',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.primary, fontSize: 13),
+            ),
+          )
         ],
       ),
     );
@@ -709,7 +814,7 @@ class ProviderDiscoveryScreen extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), offset: const Offset(0, -2), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(0, -2), blurRadius: 4)],
       ),
       child: SafeArea(
         child: Padding(
@@ -750,59 +855,186 @@ class ProviderDiscoveryScreen extends StatelessWidget {
   }
 }
 
+class _WhyRecommendedWidget extends StatefulWidget {
+  final String name;
+  final String subService;
+  final double rating;
+  final int jobs;
+  final double distance;
+
+  const _WhyRecommendedWidget({
+    required this.name,
+    required this.subService,
+    required this.rating,
+    required this.jobs,
+    required this.distance,
+  });
+
+  @override
+  State<_WhyRecommendedWidget> createState() => _WhyRecommendedWidgetState();
+}
+
+class _WhyRecommendedWidgetState extends State<_WhyRecommendedWidget> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F7FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.08)),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurface),
+                        children: [
+                          TextSpan(
+                            text: 'Why Recommended: ',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.primary),
+                          ),
+                          TextSpan(
+                            text: widget.distance < 1.0
+                                ? 'Closest verified ${widget.subService.toLowerCase()} near you...'
+                                : 'Highly qualified match for ${widget.subService.toLowerCase()}...',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _isExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
+              child: Text(
+                '${widget.name} ranks #1 based on proximity (${widget.distance.toStringAsFixed(1)} km) and a pristine ${widget.rating} rating from ${widget.jobs} bookings. Highly recommended for efficient, top-tier ${widget.subService.toLowerCase()} support without delays.',
+                style: GoogleFonts.inter(fontSize: 11, height: 1.4, color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w500),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MiniMapPainter extends CustomPainter {
-  final int count;
-  const _MiniMapPainter(this.count);
+  final List<Map<String, dynamic>> techs;
+  const _MiniMapPainter(this.techs);
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Draw map background
     final paint = Paint()
-      ..color = AppColors.surfaceContainerLowest
+      ..color = const Color(0xFFE8F1E9)
       ..style = PaintingStyle.fill;
     canvas.drawRect(Offset.zero & size, paint);
 
     // Draw route grids
-    final linePaint = Paint()
-      ..color = AppColors.surfaceVariant
-      ..strokeWidth = 1.0;
+    final gridPaint = Paint()
+      ..color = Colors.white.withOpacity(0.6)
+      ..strokeWidth = 2.0;
 
-    for (double i = 0; i < size.width; i += 40) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), linePaint);
+    for (double i = 0; i < size.width; i += 30) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), gridPaint);
     }
-    for (double i = 0; i < size.height; i += 40) {
-      canvas.drawLine(Offset(0, i), Offset(size.width, i), linePaint);
+    for (double i = 0; i < size.height; i += 30) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), gridPaint);
     }
 
-    // Draw secondary map roads
+    // Draw stylized highway roads
     final roadPaint = Paint()
-      ..color = AppColors.surfaceVariant.withValues(alpha: 0.7)
-      ..strokeWidth = 10
+      ..color = Colors.white
+      ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawLine(Offset(20, 20), Offset(size.width - 20, size.height - 20), roadPaint);
-    canvas.drawLine(Offset(size.width - 20, 20), Offset(20, size.height - 20), roadPaint);
+    canvas.drawLine(Offset(30, 20), Offset(size.width - 30, size.height - 20), roadPaint);
+    canvas.drawLine(Offset(size.width - 30, 20), Offset(30, size.height - 20), roadPaint);
 
-    // Draw primary blue match pin
+    final roadBorderPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.2)
+      ..strokeWidth = 16
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(Offset(30, 20), Offset(size.width - 30, size.height - 20), roadBorderPaint);
+    canvas.drawLine(Offset(size.width - 30, 20), Offset(30, size.height - 20), roadBorderPaint);
+
+    // Draw primary blue user GPS pin in center
     final centerPin = Paint()..color = AppColors.primary;
     canvas.drawCircle(Offset(size.width / 2, size.height / 2), 12, centerPin);
+    
+    final pulsePaint = Paint()
+      ..color = AppColors.primary.withOpacity(0.25)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), 24, pulsePaint);
+
     final centerCore = Paint()..color = Colors.white;
     canvas.drawCircle(Offset(size.width / 2, size.height / 2), 5, centerCore);
 
     // Draw nearby technician pins based on count
     final techPin = Paint()..color = AppColors.secondary;
     final pinOffsets = [
-      Offset(size.width / 2 - 50, size.height / 2 - 30),
-      Offset(size.width / 2 + 60, size.height / 2 + 20),
-      Offset(size.width / 2 - 30, size.height / 2 + 40),
-      Offset(size.width / 2 + 40, size.height / 2 - 50),
+      Offset(size.width / 2 - 70, size.height / 2 - 40),
+      Offset(size.width / 2 + 80, size.height / 2 + 30),
+      Offset(size.width / 2 - 40, size.height / 2 + 50),
+      Offset(size.width / 2 + 60, size.height / 2 - 60),
     ];
 
-    for (int i = 0; i < count.clamp(1, 4); i++) {
-      canvas.drawCircle(pinOffsets[i], 8, techPin);
-      canvas.drawCircle(pinOffsets[i], 3, centerCore);
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+    );
+
+    for (int i = 0; i < techs.length.clamp(0, 4); i++) {
+      final offset = pinOffsets[i];
+      final tech = techs[i];
+      final name = tech['name'].toString().split(' ').first;
+      final dist = tech['distance'] as double? ?? 1.5;
+
+      // Draw pin marker
+      canvas.drawCircle(offset, 9, techPin);
+      canvas.drawCircle(offset, 3, centerCore);
+
+      // Draw dynamic distance label on map next to pin
+      textPainter.text = TextSpan(
+        text: '$name (${dist.toStringAsFixed(1)}km)',
+        style: GoogleFonts.inter(
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          color: AppColors.onSurface,
+          backgroundColor: Colors.white.withOpacity(0.85),
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(offset.dx - textPainter.width / 2, offset.dy - 20));
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
