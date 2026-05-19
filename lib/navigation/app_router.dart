@@ -22,6 +22,7 @@ import '../screens/technician/tech_navigation_screen.dart';
 import '../widgets/bottom_nav_shell.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/admin_login_screen.dart';
+import '../screens/customer/provider_chat_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -71,6 +72,16 @@ final GoRouter appRouter = GoRouter(
           tech = Map<String, dynamic>.from(state.extra as Map);
         }
         return ProviderDetailsScreen(technician: tech);
+      },
+    ),
+    GoRoute(
+      path: '/customer/provider-chat',
+      builder: (context, state) {
+        Map<String, dynamic>? tech;
+        if (state.extra is Map) {
+          tech = Map<String, dynamic>.from(state.extra as Map);
+        }
+        return ProviderChatScreen(technician: tech);
       },
     ),
     GoRoute(path: '/customer/booking-confirmed', builder: (context, state) => const BookingConfirmationScreen()),
