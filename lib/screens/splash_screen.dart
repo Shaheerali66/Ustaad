@@ -117,26 +117,6 @@ class SplashScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // Language Selector
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.onPrimaryFixed.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(9999),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('English', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-                              _divider(),
-                              Text('Urdu', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.6))),
-                              _divider(),
-                              Text('Roman Urdu', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.6))),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
@@ -146,15 +126,6 @@ class SplashScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _divider() {
-    return Container(
-      width: 1,
-      height: 16,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      color: Colors.white.withValues(alpha: 0.3),
     );
   }
 }
