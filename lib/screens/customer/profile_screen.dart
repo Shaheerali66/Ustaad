@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
+import '../../data/document_database.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -179,13 +180,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _saveProfileChanges() {
     if (!_isEditsValid()) return;
 
-    UserDatabase.updateProfile({
-      'fullName': _nameController.text.trim(),
-      'email': _emailController.text.trim(),
-      'phone': _phoneController.text.trim(),
-      'address': _addressController.text.trim(),
-      'city': _tempSelectedCity!,
-    });
+    if (UserDatabase.isTechAuthenticated) {
+      final techId = UserDatabase.currentTechnician!['id']?.toString() ?? '';
+      final updatedData = {
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'area': _addressController.text.trim(),
+        'city': _tempSelectedCity!,
+      };
+      DocumentDatabase.updateTechnician(techId, updatedData);
+      
+      final updatedTech = Map<String, dynamic>.from(UserDatabase.currentTechnician!);
+      updatedData.forEach((k, v) {
+        updatedTech[k] = v;
+      });
+      UserDatabase.techLogin(updatedTech);
+    } else {
+      UserDatabase.updateProfile({
+        'fullName': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim(),
+        'city': _tempSelectedCity!,
+      });
+    }
 
     setState(() {
       _isEditing = false;
@@ -441,12 +460,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = UserDatabase.currentUser;
-    final name = user?['fullName'] ?? 'Ahmed Ali';
-    final email = user?['email'] ?? 'ahmed@gmail.com';
-    final phone = user?['phone'] ?? '0300-1234567';
-    final address = user?['address'] ?? 'House 12, Sector G-13';
-    final city = user?['city'] ?? 'Islamabad';
+    final isTech = UserDatabase.isTechAuthenticated;
+    final name = isTech ? (UserDatabase.currentTechnician?['name'] ?? '') : (UserDatabase.currentUser?['fullName'] ?? 'Ahmed Ali');
+    final email = isTech ? (UserDatabase.currentTechnician?['email'] ?? '') : (UserDatabase.currentUser?['email'] ?? 'ahmed@gmail.com');
+    final phone = isTech ? (UserDatabase.currentTechnician?['phone'] ?? '') : (UserDatabase.currentUser?['phone'] ?? '0300-1234567');
+    final address = isTech ? (UserDatabase.currentTechnician?['area'] ?? '') : (UserDatabase.currentUser?['address'] ?? 'House 12, Sector G-13');
+    final city = isTech ? (UserDatabase.currentTechnician?['city'] ?? '') : (UserDatabase.currentUser?['city'] ?? 'Islamabad');
     final initials = _getUserInitials(name);
 
     return Scaffold(
@@ -717,6 +736,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: TextButton.icon(
                   onPressed: () {
                     UserDatabase.logout();
+                    UserDatabase.techLogout();
                     context.go('/');
                   },
                   icon: const Icon(Icons.logout, color: AppColors.error),

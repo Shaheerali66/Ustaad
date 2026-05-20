@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/booking_state.dart';
+import '../../data/user_database.dart';
 
 class TechDashboardScreen extends StatefulWidget {
   const TechDashboardScreen({super.key});
@@ -26,7 +27,7 @@ class _TechDashboardScreenState extends State<TechDashboardScreen> {
           const CircleAvatar(radius: 16, backgroundImage: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuAvYftedLPCJAs_RUUhjyQ4hyPqRfIgNtibPXAtILOlM6X-wwqViIJ1mU8sDcA57992Wa_ZJZEkONXlNQyzOWnerO2pxuOy8KHiygva1BepTsjcuaF5yfEIAhU_7oSEmVOlsuMz6XoJnbW_HzV-lmB6CEhW7uI3Hc1AiF73la1R79VKg-WBwc8DQCSxgbor-D35ZcuRNEkoJqNrguGS6-9q3DYwVni7trO9avClJVMMoDlhmwA3c8YzIXfXs1Z3wd94Vf2AkdtmCbQ')),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Ali Raza', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(UserDatabase.currentTechnician?['name'] ?? 'Service Provider', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
             Row(children: [
               Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: _isOnline ? AppColors.secondary : AppColors.onSurfaceVariant)),
               const SizedBox(width: 4),

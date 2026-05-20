@@ -222,7 +222,7 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        context.go('/technician/home');
+        context.go('/technician/submitted');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

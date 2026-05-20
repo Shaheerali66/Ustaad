@@ -19,6 +19,9 @@ import '../screens/technician/tech_service_info_screen.dart';
 import '../screens/technician/tech_documents_screen.dart';
 import '../screens/technician/tech_performance_screen.dart';
 import '../screens/technician/tech_navigation_screen.dart';
+import '../screens/technician/tech_welcome_screen.dart';
+import '../screens/technician/tech_login_screen.dart';
+import '../screens/technician/tech_submitted_screen.dart';
 import '../widgets/bottom_nav_shell.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/admin_login_screen.dart';
@@ -62,6 +65,24 @@ final GoRouter appRouter = GoRouter(
     // → skip auth and go straight to home dashboard
     if (isAuthenticated && isAuthRoute) {
       return '/customer/home';
+    }
+
+    final isTechRoute = path.startsWith('/technician');
+    final isTechAuthRoute = path == '/technician/welcome' ||
+                            path == '/technician/login' ||
+                            path == '/technician/register' ||
+                            path == '/technician/service-info' ||
+                            path == '/technician/documents' ||
+                            path == '/technician/submitted';
+
+    // Unauthenticated technician trying to access protected technician dashboard/insights/etc.
+    if (isTechRoute && !UserDatabase.isTechAuthenticated && !isTechAuthRoute) {
+      return '/technician/welcome';
+    }
+
+    // Authenticated technician trying to access welcome or login screen
+    if (UserDatabase.isTechAuthenticated && (path == '/technician/welcome' || path == '/technician/login')) {
+      return '/technician/home';
     }
 
     return null;
@@ -133,9 +154,12 @@ final GoRouter appRouter = GoRouter(
     ),
 
     // Technician registration flow
+    GoRoute(path: '/technician/welcome', builder: (context, state) => const TechWelcomeScreen()),
+    GoRoute(path: '/technician/login', builder: (context, state) => const TechLoginScreen()),
     GoRoute(path: '/technician/register', builder: (context, state) => const TechRegistrationScreen()),
     GoRoute(path: '/technician/service-info', builder: (context, state) => const TechServiceInfoScreen()),
     GoRoute(path: '/technician/documents', builder: (context, state) => const TechDocumentsScreen()),
+    GoRoute(path: '/technician/submitted', builder: (context, state) => const TechSubmittedScreen()),
     GoRoute(path: '/technician/navigation', builder: (context, state) => const TechNavigationScreen()),
     
     // Administrative backend portal

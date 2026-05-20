@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../data/user_database.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -53,7 +54,13 @@ class RoleSelectionScreen extends StatelessWidget {
                         iconColor: AppColors.onSecondaryContainer,
                         title: 'I Am a Service Provider',
                         subtitle: 'Offer your skills and earn on your schedule.',
-                        onTap: () => context.go('/technician/register'),
+                        onTap: () {
+                          if (UserDatabase.isTechAuthenticated) {
+                            context.go('/technician/home');
+                          } else {
+                            context.go('/technician/welcome');
+                          }
+                        },
                       ),
                       const Spacer(),
                       const SizedBox(height: 24),

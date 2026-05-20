@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'document_database.dart';
 import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 
@@ -7,9 +8,12 @@ class UserDatabase {
   static Map<String, dynamic>? _currentUser;
   static bool _isFirstLoginAfterSignup = false;
 
+  static Map<String, dynamic>? _currentTechnician;
+
   static const String _usersKey = 'khidmat_registered_users_v1';
   static const String _currentUserKey = 'khidmat_current_user_v1';
   static const String _firstLoginKey = 'khidmat_first_login_flag_v1';
+  static const String _currentTechKey = 'khidmat_current_tech_v1';
   static const String _usersCloudUrl = 'https://jsonbin-zeta.vercel.app/api/bins/VRHuwcv2Jv';
 
   static Future<bool> syncUsersToCloud() async {
@@ -87,6 +91,12 @@ class UserDatabase {
         _currentUser = jsonDecode(currentUserData);
       }
 
+      // Load current logged-in technician
+      final currentTechData = html.window.localStorage[_currentTechKey];
+      if (currentTechData != null && currentTechData.trim().isNotEmpty) {
+        _currentTechnician = jsonDecode(currentTechData);
+      }
+
       // Load first login flag
       final firstLoginData = html.window.localStorage[_firstLoginKey];
       if (firstLoginData != null) {
@@ -111,6 +121,30 @@ class UserDatabase {
   static bool get isAuthenticated => _currentUser != null;
 
   static Map<String, dynamic>? get currentUser => _currentUser;
+
+  static bool get isTechAuthenticated => _currentTechnician != null;
+
+  static Map<String, dynamic>? get currentTechnician => _currentTechnician;
+
+  static void _saveCurrentTechnician() {
+    try {
+      if (_currentTechnician != null) {
+        html.window.localStorage[_currentTechKey] = jsonEncode(_currentTechnician);
+      } else {
+        html.window.localStorage.remove(_currentTechKey);
+      }
+    } catch (_) {}
+  }
+
+  static void techLogin(Map<String, dynamic> tech) {
+    _currentTechnician = tech;
+    _saveCurrentTechnician();
+  }
+
+  static void techLogout() {
+    _currentTechnician = null;
+    _saveCurrentTechnician();
+  }
 
   static bool get isFirstLogin => _isFirstLoginAfterSignup;
 
@@ -209,11 +243,21 @@ class UserDatabase {
   }
 
   static bool verifyCurrentPassword(String password) {
+    if (isTechAuthenticated) {
+      return _currentTechnician!['password']?.toString() == password;
+    }
     if (_currentUser == null) return false;
     return _currentUser!['password']?.toString() == password;
   }
 
-  static void updatePassword(String newPassword) {
+  static void updatePassword(String newPassword) async {
+    if (isTechAuthenticated) {
+      _currentTechnician!['password'] = newPassword;
+      _saveCurrentTechnician();
+      final techId = _currentTechnician!['id']?.toString() ?? '';
+      await DocumentDatabase.updateTechnician(techId, {'password': newPassword});
+      return;
+    }
     if (_currentUser == null) return;
     _currentUser!['password'] = newPassword;
     _saveCurrentUser();
