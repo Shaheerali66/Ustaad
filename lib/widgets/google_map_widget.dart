@@ -47,6 +47,8 @@ class _GoogleMapWidgetState extends State<GoogleMapWidget> {
         ..style.height = '100%'
         ..style.minHeight = '300px'
         ..style.minWidth = '100%'
+        ..style.position = 'relative'
+        ..style.display = 'block'
         ..style.backgroundColor = '#E8F1E9'
         ..style.borderRadius = widget.borderRadius != null ? '${widget.borderRadius!.topLeft.x}px' : '16px';
       return div;

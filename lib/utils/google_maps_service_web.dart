@@ -74,8 +74,8 @@ class GoogleMapsService {
             if (result != null) {
               final jsResult = result as js.JsObject;
               completer.complete({
-                'lat': jsResult['lat'] as double,
-                'lng': jsResult['lng'] as double,
+                'lat': (jsResult['lat'] as num).toDouble(),
+                'lng': (jsResult['lng'] as num).toDouble(),
                 'formattedAddress': jsResult['formattedAddress']?.toString() ?? address,
               });
             } else {
