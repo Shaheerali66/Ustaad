@@ -14,8 +14,9 @@ class BookingConfirmationScreen extends StatefulWidget {
 }
 
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
-  double _centerLat = 33.6844;
-  double _centerLng = 73.0479;
+  double _centerLat = 30.3753; // Pakistan center
+  double _centerLng = 69.3451;
+  double _zoom = 5.0; // Country zoom
   List<Map<String, dynamic>> _markers = [];
 
   @override
@@ -30,38 +31,60 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         : null;
     final addressText = latest?.location ?? 'House 12, Street 4, Sector G-13, Islamabad';
     
-    // Default fallback coordinates: Islamabad
-    double initLat = 33.6844;
-    double initLng = 73.0479;
-    final lower = addressText.toLowerCase();
-    if (lower.contains('lahore')) {
-      initLat = 31.5204;
-      initLng = 74.3587;
-    } else if (lower.contains('karachi')) {
-      initLat = 24.8607;
-      initLng = 67.0011;
-    } else if (lower.contains('hyderabad')) {
-      initLat = 25.3960;
-      initLng = 68.3578;
-    }
-
     setState(() {
-      _centerLat = initLat;
-      _centerLng = initLng;
-      _markers = [
-        {'lat': initLat, 'lng': initLng, 'title': 'Service Location'}
-      ];
+      _centerLat = 30.3753;
+      _centerLng = 69.3451;
+      _zoom = 5.0;
+      _markers = [];
     });
 
-    final result = await GoogleMapsService.geocodeAddress(addressText);
-    if (result != null && mounted) {
+    if (addressText.isNotEmpty && !addressText.toLowerCase().contains('select location')) {
+      double fallbackLat = 33.6844;
+      double fallbackLng = 73.0479;
+      final lower = addressText.toLowerCase();
+      if (lower.contains('lahore')) {
+        fallbackLat = 31.5204;
+        fallbackLng = 74.3587;
+      } else if (lower.contains('karachi')) {
+        fallbackLat = 24.8607;
+        fallbackLng = 67.0011;
+      } else if (lower.contains('hyderabad')) {
+        fallbackLat = 25.3960;
+        fallbackLng = 68.3578;
+      } else if (lower.contains('peshawar')) {
+        fallbackLat = 34.0151;
+        fallbackLng = 71.5249;
+      } else if (lower.contains('quetta')) {
+        fallbackLat = 30.1798;
+        fallbackLng = 66.9750;
+      } else if (lower.contains('multan')) {
+        fallbackLat = 30.1575;
+        fallbackLng = 71.5249;
+      } else if (lower.contains('faisalabad')) {
+        fallbackLat = 31.4504;
+        fallbackLng = 73.1350;
+      }
+
       setState(() {
-        _centerLat = result['lat'] as double;
-        _centerLng = result['lng'] as double;
+        _centerLat = fallbackLat;
+        _centerLng = fallbackLng;
+        _zoom = 14.0;
         _markers = [
-          {'lat': _centerLat, 'lng': _centerLng, 'title': 'Service Location'}
+          {'lat': fallbackLat, 'lng': fallbackLng, 'title': 'Service Location'}
         ];
       });
+
+      final result = await GoogleMapsService.geocodeAddress(addressText);
+      if (result != null && mounted) {
+        setState(() {
+          _centerLat = result['lat'] as double;
+          _centerLng = result['lng'] as double;
+          _zoom = 14.0;
+          _markers = [
+            {'lat': _centerLat, 'lng': _centerLng, 'title': 'Service Location'}
+          ];
+        });
+      }
     }
   }
 
@@ -126,7 +149,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             const SizedBox(height: 16),
             // Real Google Map
             Container(
-              height: 180,
+              height: 300,
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
@@ -137,9 +160,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                 child: GoogleMapWidget(
                   centerLat: _centerLat,
                   centerLng: _centerLng,
-                  zoom: 14,
+                  zoom: _zoom,
                   markers: _markers,
-                  height: 180,
+                  height: 300,
                 ),
               ),
             ),

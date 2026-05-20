@@ -31,8 +31,9 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   ];
 
   late final List<DateTime> _dates;
-  double _centerLat = 33.6844;
-  double _centerLng = 73.0479;
+  double _centerLat = 30.3753; // Pakistan center
+  double _centerLng = 69.3451;
+  double _zoom = 5.0; // Country zoom
   List<Map<String, dynamic>> _markers = [];
 
   @override
@@ -47,37 +48,61 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
     final area = (widget.technician?['area'] ?? 'Sector G-13').toString();
     final city = (widget.technician?['city'] ?? 'Islamabad').toString();
     final addressText = '$area, $city';
-    final lowerCity = city.toLowerCase();
     
-    double initLat = 33.6844;
-    double initLng = 73.0479;
-    if (lowerCity.contains('lahore')) {
-      initLat = 31.5204;
-      initLng = 74.3587;
-    } else if (lowerCity.contains('karachi')) {
-      initLat = 24.8607;
-      initLng = 67.0011;
-    } else if (lowerCity.contains('hyderabad')) {
-      initLat = 25.3960;
-      initLng = 68.3578;
-    }
     setState(() {
-      _centerLat = initLat;
-      _centerLng = initLng;
-      _markers = [
-        {'lat': initLat, 'lng': initLng, 'title': widget.technician?['name'] ?? 'Provider'}
-      ];
+      _centerLat = 30.3753;
+      _centerLng = 69.3451;
+      _zoom = 5.0;
+      _markers = [];
     });
 
-    final result = await GoogleMapsService.geocodeAddress(addressText);
-    if (result != null && mounted) {
+    if (addressText.isNotEmpty && !addressText.toLowerCase().contains('select location')) {
+      double fallbackLat = 33.6844;
+      double fallbackLng = 73.0479;
+      final lowerCity = city.toLowerCase();
+      if (lowerCity.contains('lahore')) {
+        fallbackLat = 31.5204;
+        fallbackLng = 74.3587;
+      } else if (lowerCity.contains('karachi')) {
+        fallbackLat = 24.8607;
+        fallbackLng = 67.0011;
+      } else if (lowerCity.contains('hyderabad')) {
+        fallbackLat = 25.3960;
+        fallbackLng = 68.3578;
+      } else if (lowerCity.contains('peshawar')) {
+        fallbackLat = 34.0151;
+        fallbackLng = 71.5249;
+      } else if (lowerCity.contains('quetta')) {
+        fallbackLat = 30.1798;
+        fallbackLng = 66.9750;
+      } else if (lowerCity.contains('multan')) {
+        fallbackLat = 30.1575;
+        fallbackLng = 71.5249;
+      } else if (lowerCity.contains('faisalabad')) {
+        fallbackLat = 31.4504;
+        fallbackLng = 73.1350;
+      }
+
       setState(() {
-        _centerLat = result['lat'] as double;
-        _centerLng = result['lng'] as double;
+        _centerLat = fallbackLat;
+        _centerLng = fallbackLng;
+        _zoom = 14.0;
         _markers = [
-          {'lat': _centerLat, 'lng': _centerLng, 'title': widget.technician?['name'] ?? 'Provider'}
+          {'lat': fallbackLat, 'lng': fallbackLng, 'title': widget.technician?['name'] ?? 'Provider'}
         ];
       });
+
+      final result = await GoogleMapsService.geocodeAddress(addressText);
+      if (result != null && mounted) {
+        setState(() {
+          _centerLat = result['lat'] as double;
+          _centerLng = result['lng'] as double;
+          _zoom = 14.0;
+          _markers = [
+            {'lat': _centerLat, 'lng': _centerLng, 'title': widget.technician?['name'] ?? 'Provider'}
+          ];
+        });
+      }
     }
   }
 
@@ -462,13 +487,13 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
                   ),
                   const SizedBox(height: 10),
                   Container(
-                    height: 150,
+                    height: 300,
                     child: GoogleMapWidget(
                       centerLat: _centerLat,
                       centerLng: _centerLng,
-                      zoom: 14,
+                      zoom: _zoom,
                       markers: _markers,
-                      height: 150,
+                      height: 300,
                     ),
                   ),
                 ],

@@ -23,8 +23,9 @@ class _ProviderDiscoveryScreenState extends State<ProviderDiscoveryScreen> {
   String _selectedSort = 'Rating'; // Options: 'Distance', 'Rating', 'Availability', 'Price'
   bool _expandSearch = false; // Set to true when user gives explicit consent to expand search
   
-  double _centerLat = 33.6844;
-  double _centerLng = 73.0479;
+  double _centerLat = 30.3753; // Pakistan center
+  double _centerLng = 69.3451;
+  double _zoom = 5.0; // Country zoom
   List<Map<String, dynamic>> _markers = [];
   bool _hasGeocoded = false;
 
@@ -36,32 +37,57 @@ class _ProviderDiscoveryScreenState extends State<ProviderDiscoveryScreen> {
 
   void _initMapCoordinates() async {
     final locationText = (widget.bookingDetails?['location'] ?? UserDatabase.activeLocation).toString();
-    final lowerLoc = locationText.toLowerCase();
-    double initLat = 33.6844;
-    double initLng = 73.0479;
-    if (lowerLoc.contains('lahore')) {
-      initLat = 31.5204;
-      initLng = 74.3587;
-    } else if (lowerLoc.contains('karachi')) {
-      initLat = 24.8607;
-      initLng = 67.0011;
-    } else if (lowerLoc.contains('hyderabad')) {
-      initLat = 25.3960;
-      initLng = 68.3578;
-    }
+    
     setState(() {
-      _centerLat = initLat;
-      _centerLng = initLng;
+      _centerLat = 30.3753;
+      _centerLng = 69.3451;
+      _zoom = 5.0;
+      _markers = [];
     });
 
-    final result = await GoogleMapsService.geocodeAddress(locationText);
-    if (result != null && mounted) {
+    if (locationText.isNotEmpty && !locationText.toLowerCase().contains('select location')) {
+      double fallbackLat = 33.6844;
+      double fallbackLng = 73.0479;
+      final lower = locationText.toLowerCase();
+      if (lower.contains('lahore')) {
+        fallbackLat = 31.5204;
+        fallbackLng = 74.3587;
+      } else if (lower.contains('karachi')) {
+        fallbackLat = 24.8607;
+        fallbackLng = 67.0011;
+      } else if (lower.contains('hyderabad')) {
+        fallbackLat = 25.3960;
+        fallbackLng = 68.3578;
+      } else if (lower.contains('peshawar')) {
+        fallbackLat = 34.0151;
+        fallbackLng = 71.5249;
+      } else if (lower.contains('quetta')) {
+        fallbackLat = 30.1798;
+        fallbackLng = 66.9750;
+      } else if (lower.contains('multan')) {
+        fallbackLat = 30.1575;
+        fallbackLng = 71.5249;
+      } else if (lower.contains('faisalabad')) {
+        fallbackLat = 31.4504;
+        fallbackLng = 73.1350;
+      }
+      
       setState(() {
-        _centerLat = result['lat'] as double;
-        _centerLng = result['lng'] as double;
-        _hasGeocoded = true;
+        _centerLat = fallbackLat;
+        _centerLng = fallbackLng;
+        _zoom = 13.0;
       });
-      _generateMarkers();
+
+      final result = await GoogleMapsService.geocodeAddress(locationText);
+      if (result != null && mounted) {
+        setState(() {
+          _centerLat = result['lat'] as double;
+          _centerLng = result['lng'] as double;
+          _zoom = 13.0;
+          _hasGeocoded = true;
+        });
+        _generateMarkers();
+      }
     }
   }
 
@@ -337,14 +363,14 @@ class _ProviderDiscoveryScreenState extends State<ProviderDiscoveryScreen> {
             else ...[
               // Real Google Map
               Container(
-                height: 200,
+                height: 300,
                 margin: const EdgeInsets.only(bottom: 20),
                 child: GoogleMapWidget(
                   centerLat: _centerLat,
                   centerLng: _centerLng,
-                  zoom: 13,
+                  zoom: _zoom,
                   markers: _markers,
-                  height: 200,
+                  height: 300,
                 ),
               ),
 

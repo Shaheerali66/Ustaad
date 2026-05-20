@@ -41,11 +41,13 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=NEXT_PUBLIC_GOOGLE_MAPS_API_KEY&libraries=places"></script>
   <script>
+    window.gmapsLoaded = false;
+    window.gmapsDeferredInitializations = [];
+
     window.getPlaceSuggestions = function(input, callback) {
-      if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-        callback([]);
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.getPlaceSuggestions(input, callback); }, 200);
         return;
       }
       var service = new google.maps.places.AutocompleteService();
@@ -69,8 +71,8 @@
     };
 
     window.geocodeAddress = function(address, callback) {
-      if (typeof google === 'undefined' || !google.maps) {
-        callback(null);
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.geocodeAddress(address, callback); }, 200);
         return;
       }
       var geocoder = new google.maps.Geocoder();
@@ -89,8 +91,8 @@
     };
 
     window.getDirectionsRoute = function(origin, destination, callback) {
-      if (typeof google === 'undefined' || !google.maps) {
-        callback(null);
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.getDirectionsRoute(origin, destination, callback); }, 200);
         return;
       }
       var directionsService = new google.maps.DirectionsService();
@@ -108,8 +110,8 @@
     };
 
     window.getDistanceMatrix = function(origin, destination, callback) {
-      if (typeof google === 'undefined' || !google.maps) {
-        callback(null);
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.getDistanceMatrix(origin, destination, callback); }, 200);
         return;
       }
       var service = new google.maps.DistanceMatrixService();
@@ -137,6 +139,18 @@
 
     window.mapsInstances = {};
     window.initializeGoogleMap = function(containerId, lat, lng, zoom, markers, route) {
+      if (!window.gmapsLoaded) {
+        window.gmapsDeferredInitializations.push({
+          containerId: containerId,
+          lat: lat,
+          lng: lng,
+          zoom: zoom,
+          markers: markers,
+          route: route
+        });
+        return;
+      }
+
       var element = document.getElementById(containerId);
       if (!element) {
         setTimeout(function() {
@@ -184,6 +198,23 @@
         });
       }
     };
+
+    // Load Google Maps script dynamically and handle onload callback
+    (function() {
+      var script = document.createElement('script');
+      script.src = "https://maps.googleapis.com/maps/api/js?key=NEXT_PUBLIC_GOOGLE_MAPS_API_KEY&libraries=places";
+      script.async = true;
+      script.defer = true;
+      script.onload = function() {
+        window.gmapsLoaded = true;
+        // Process any deferred initializations
+        while (window.gmapsDeferredInitializations.length > 0) {
+          var init = window.gmapsDeferredInitializations.shift();
+          window.initializeGoogleMap(init.containerId, init.lat, init.lng, init.zoom, init.markers, init.route);
+        }
+      };
+      document.head.appendChild(script);
+    })();
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

@@ -15,9 +15,10 @@ class FollowUpScreen extends StatefulWidget {
 }
 
 class _FollowUpScreenState extends State<FollowUpScreen> {
-  double _centerLat = 33.6844;
-  double _centerLng = 73.0479;
-  String _providerOrigin = 'Sector I-8, Islamabad';
+  double _centerLat = 30.3753; // Pakistan center
+  double _centerLng = 69.3451;
+  double _zoom = 5.0; // Country zoom
+  String _providerOrigin = 'Center, Islamabad';
   String _customerDestination = 'House 12, Street 4, Sector G-13, Islamabad';
 
   @override
@@ -32,38 +33,74 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
         : null;
     final customerAddress = latest?.location ?? 'House 12, Street 4, Sector G-13, Islamabad';
     
-    String origin = 'Sector I-8, Islamabad';
-    double initLat = 33.6844;
-    double initLng = 73.0479;
+    final parts = customerAddress.split(',');
+    String city = parts.isNotEmpty ? parts.last.trim() : 'Islamabad';
+    if (city.toLowerCase().contains('select location') || city.isEmpty) {
+      city = 'Islamabad';
+    }
     
+    String origin = 'Center, $city';
+    double initLat = 30.3753;
+    double initLng = 69.3451;
+    double initZoom = 5.0;
+
+    double fallbackLat = 33.6844;
+    double fallbackLng = 73.0479;
     final lower = customerAddress.toLowerCase();
-    if (lower.contains('lahore')) {
-      origin = 'Gulberg, Lahore';
-      initLat = 31.5204;
-      initLng = 74.3587;
-    } else if (lower.contains('karachi')) {
-      origin = 'Clifton, Karachi';
-      initLat = 24.8607;
-      initLng = 67.0011;
-    } else if (lower.contains('hyderabad')) {
-      origin = 'Latifabad, Hyderabad';
-      initLat = 25.3960;
-      initLng = 68.3578;
+    if (lower.isNotEmpty && !lower.contains('select location')) {
+      initZoom = 12.0;
+      if (lower.contains('lahore')) {
+        fallbackLat = 31.5204;
+        fallbackLng = 74.3587;
+        origin = 'Gulberg, Lahore';
+      } else if (lower.contains('karachi')) {
+        fallbackLat = 24.8607;
+        fallbackLng = 67.0011;
+        origin = 'Clifton, Karachi';
+      } else if (lower.contains('hyderabad')) {
+        fallbackLat = 25.3960;
+        fallbackLng = 68.3578;
+        origin = 'Latifabad, Hyderabad';
+      } else if (lower.contains('peshawar')) {
+        fallbackLat = 34.0151;
+        fallbackLng = 71.5249;
+        origin = 'University Road, Peshawar';
+      } else if (lower.contains('quetta')) {
+        fallbackLat = 30.1798;
+        fallbackLng = 66.9750;
+        origin = 'Cantonment, Quetta';
+      } else if (lower.contains('multan')) {
+        fallbackLat = 30.1575;
+        fallbackLng = 71.5249;
+        origin = 'Boson Road, Multan';
+      } else if (lower.contains('faisalabad')) {
+        fallbackLat = 31.4504;
+        fallbackLng = 73.1350;
+        origin = 'People\'s Colony, Faisalabad';
+      } else {
+        origin = 'Main Bazar, $city';
+      }
+      initLat = fallbackLat;
+      initLng = fallbackLng;
     }
 
     setState(() {
       _centerLat = initLat;
       _centerLng = initLng;
+      _zoom = initZoom;
       _providerOrigin = origin;
       _customerDestination = customerAddress;
     });
 
-    final result = await GoogleMapsService.geocodeAddress(customerAddress);
-    if (result != null && mounted) {
-      setState(() {
-        _centerLat = result['lat'] as double;
-        _centerLng = result['lng'] as double;
-      });
+    if (customerAddress.isNotEmpty && !customerAddress.toLowerCase().contains('select location')) {
+      final result = await GoogleMapsService.geocodeAddress(customerAddress);
+      if (result != null && mounted) {
+        setState(() {
+          _centerLat = result['lat'] as double;
+          _centerLng = result['lng'] as double;
+          _zoom = 12.0;
+        });
+      }
     }
   }
   void _showChatSheet(BuildContext context) {
@@ -269,7 +306,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
 
             // Live Technician Tracking Map
             Container(
-              height: 220,
+              height: 300,
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
@@ -280,12 +317,12 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                 child: GoogleMapWidget(
                   centerLat: _centerLat,
                   centerLng: _centerLng,
-                  zoom: 12,
+                  zoom: _zoom,
                   route: {
                     'origin': _providerOrigin,
                     'destination': _customerDestination,
                   },
-                  height: 220,
+                  height: 300,
                 ),
               ),
             ),

@@ -20,7 +20,7 @@ class GoogleMapWidget extends StatefulWidget {
     this.zoom = 13,
     this.markers = const [],
     this.route,
-    this.height = 200,
+    this.height = 300,
     this.borderRadius,
   });
 
@@ -45,6 +45,8 @@ class _GoogleMapWidgetState extends State<GoogleMapWidget> {
         ..id = _containerId
         ..style.width = '100%'
         ..style.height = '100%'
+        ..style.minHeight = '300px'
+        ..style.minWidth = '100%'
         ..style.backgroundColor = '#E8F1E9'
         ..style.borderRadius = widget.borderRadius != null ? '${widget.borderRadius!.topLeft.x}px' : '16px';
       return div;
@@ -87,8 +89,9 @@ class _GoogleMapWidgetState extends State<GoogleMapWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final double displayHeight = widget.height < 300 ? 300 : widget.height;
     return Container(
-      height: widget.height,
+      height: displayHeight,
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: widget.borderRadius ?? BorderRadius.circular(16),
