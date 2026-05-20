@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:universal_html/html.dart' as html;
+import 'platform_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../theme/app_colors.dart';
@@ -286,7 +286,7 @@ class BookingsRepository {
 
   static void init() {
     try {
-      final bookingsData = html.window.localStorage[_bookingsKey];
+      final bookingsData = PlatformStorage.getString(_bookingsKey);
       if (bookingsData != null && bookingsData.trim().isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(bookingsData);
         _bookings = decoded.map((e) => BookingData.fromJson(Map<String, dynamic>.from(e))).toList();
@@ -295,7 +295,7 @@ class BookingsRepository {
         _saveBookings();
       }
 
-      final complaintsData = html.window.localStorage[_complaintsKey];
+      final complaintsData = PlatformStorage.getString(_complaintsKey);
       if (complaintsData != null && complaintsData.trim().isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(complaintsData);
         _complaints = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -442,13 +442,13 @@ class BookingsRepository {
 
   static void _saveBookings() {
     try {
-      html.window.localStorage[_bookingsKey] = jsonEncode(_bookings.map((e) => e.toJson()).toList());
+      PlatformStorage.setString(_bookingsKey, jsonEncode(_bookings.map((e) => e.toJson()).toList()));
     } catch (_) {}
   }
 
   static void _saveComplaints() {
     try {
-      html.window.localStorage[_complaintsKey] = jsonEncode(_complaints);
+      PlatformStorage.setString(_complaintsKey, jsonEncode(_complaints));
     } catch (_) {}
   }
 

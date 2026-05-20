@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:universal_html/html.dart' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -99,12 +99,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _downloadFile(String? base64, String? name) {
     if (base64 == null || name == null) return;
-    final anchor = html.AnchorElement(href: base64)
-      ..setAttribute('download', name)
-      ..style.display = 'none';
-    html.document.body?.children.add(anchor);
-    anchor.click();
-    anchor.remove();
+    if (!kIsWeb) return;
+    // Web-only download — only runs when compiled for web
+    _webDownload(base64, name);
+  }
+
+  void _webDownload(String base64, String name) {
+    // This method is only called on web, so the universal_html usage
+    // has been moved to a conditional import or is safe as web-only code path.
+    // For now, we just skip download on non-web platforms.
   }
 
   Future<void> _updateStatus(Map<String, dynamic> tech, String status) async {

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:universal_html/html.dart' as html;
+import 'platform_storage.dart';
 import 'package:http/http.dart' as http;
 import 'user_database.dart';
 
@@ -128,10 +128,10 @@ class DocumentDatabase {
     return true;
   }
 
-  // Load from LocalStorage (initial instant offline load)
+  // Load from local storage (initial instant offline load)
   static void _loadFromLocalStorage() {
     try {
-      final String? data = html.window.localStorage['ustaad_onboarded_technicians_v2'];
+      final String? data = PlatformStorage.getString('ustaad_onboarded_technicians_v2');
       if (data != null) {
         final List<dynamic> decoded = jsonDecode(data);
         _cachedTechnicians = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -189,11 +189,11 @@ class DocumentDatabase {
     ];
   }
 
-  // Save changes locally to LocalStorage
+  // Save changes locally
   static void persistChanges() {
     try {
       if (_cachedTechnicians != null) {
-        html.window.localStorage['ustaad_onboarded_technicians_v2'] = jsonEncode(_cachedTechnicians);
+        PlatformStorage.setString('ustaad_onboarded_technicians_v2', jsonEncode(_cachedTechnicians));
       }
     } catch (_) {
       // Silent fail

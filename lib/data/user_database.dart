@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'document_database.dart';
-import 'package:universal_html/html.dart' as html;
+import 'platform_storage.dart';
 import 'package:http/http.dart' as http;
 
 class UserDatabase {
@@ -102,7 +102,7 @@ class UserDatabase {
   static void init() {
     try {
       // Load users
-      final usersData = html.window.localStorage[_usersKey];
+      final usersData = PlatformStorage.getString(_usersKey);
       if (usersData != null && usersData.trim().isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(usersData);
         _users = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -123,19 +123,19 @@ class UserDatabase {
       }
 
       // Load current logged-in user
-      final currentUserData = html.window.localStorage[_currentUserKey];
+      final currentUserData = PlatformStorage.getString(_currentUserKey);
       if (currentUserData != null && currentUserData.trim().isNotEmpty) {
         _currentUser = jsonDecode(currentUserData);
       }
 
       // Load current logged-in technician
-      final currentTechData = html.window.localStorage[_currentTechKey];
+      final currentTechData = PlatformStorage.getString(_currentTechKey);
       if (currentTechData != null && currentTechData.trim().isNotEmpty) {
         _currentTechnician = jsonDecode(currentTechData);
       }
 
       // Load first login flag
-      final firstLoginData = html.window.localStorage[_firstLoginKey];
+      final firstLoginData = PlatformStorage.getString(_firstLoginKey);
       if (firstLoginData != null) {
         _isFirstLoginAfterSignup = firstLoginData == 'true';
       }
@@ -167,9 +167,9 @@ class UserDatabase {
   static void _saveCurrentTechnician() {
     try {
       if (_currentTechnician != null) {
-        html.window.localStorage[_currentTechKey] = jsonEncode(_currentTechnician);
+        PlatformStorage.setString(_currentTechKey, jsonEncode(_currentTechnician));
       } else {
-        html.window.localStorage.remove(_currentTechKey);
+        PlatformStorage.remove(_currentTechKey);
       }
     } catch (_) {}
   }
@@ -189,22 +189,22 @@ class UserDatabase {
   static void clearFirstLoginFlag() {
     _isFirstLoginAfterSignup = false;
     try {
-      html.window.localStorage[_firstLoginKey] = 'false';
+      PlatformStorage.setString(_firstLoginKey, 'false');
     } catch (_) {}
   }
 
   static void _saveUsers() {
     try {
-      html.window.localStorage[_usersKey] = jsonEncode(_users);
+      PlatformStorage.setString(_usersKey, jsonEncode(_users));
     } catch (_) {}
   }
 
   static void _saveCurrentUser() {
     try {
       if (_currentUser != null) {
-        html.window.localStorage[_currentUserKey] = jsonEncode(_currentUser);
+        PlatformStorage.setString(_currentUserKey, jsonEncode(_currentUser));
       } else {
-        html.window.localStorage.remove(_currentUserKey);
+        PlatformStorage.remove(_currentUserKey);
       }
     } catch (_) {}
   }
@@ -218,7 +218,7 @@ class UserDatabase {
       _currentUser = Map<String, dynamic>.from(_users[index]);
       _isFirstLoginAfterSignup = false;
       try {
-        html.window.localStorage[_firstLoginKey] = 'false';
+        PlatformStorage.setString(_firstLoginKey, 'false');
       } catch (_) {}
       _saveCurrentUser();
       return true;
@@ -250,7 +250,7 @@ class UserDatabase {
     _currentUser = newUserData;
     _isFirstLoginAfterSignup = true;
     try {
-      html.window.localStorage[_firstLoginKey] = 'true';
+      PlatformStorage.setString(_firstLoginKey, 'true');
     } catch (_) {}
     _saveCurrentUser();
     return true;
@@ -261,8 +261,8 @@ class UserDatabase {
     _isFirstLoginAfterSignup = false;
     _saveCurrentUser();
     try {
-      html.window.localStorage.remove(_currentUserKey);
-      html.window.localStorage.remove(_firstLoginKey);
+      PlatformStorage.remove(_currentUserKey);
+      PlatformStorage.remove(_firstLoginKey);
     } catch (_) {}
   }
 

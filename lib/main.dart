@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'navigation/app_router.dart';
+import 'data/platform_storage.dart';
 import 'data/user_database.dart';
 import 'data/bookings_repository.dart';
 import 'data/document_database.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PlatformStorage.init();
   UserDatabase.init();
   BookingsRepository.init();
   DocumentDatabase.syncFromCloudWithInfo();
