@@ -228,43 +228,16 @@
       }
     };
 
-    // Load Google Maps script dynamically and handle onload callback
-    (function() {
-      var apiKey = "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY";
-      
-      // Local development fallback: read from URL param or localStorage
-      if (apiKey === "NEXT_PUBLIC_" + "GOOGLE_MAPS_API_KEY" || apiKey.indexOf("NEXT_PUBLIC_") === 0) {
-        var urlParams = new URLSearchParams(window.location.search);
-        var keyParam = urlParams.get('maps_key') || urlParams.get('key');
-        if (keyParam) {
-          apiKey = keyParam;
-          localStorage.setItem('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY', keyParam);
-        } else {
-          var cachedKey = localStorage.getItem('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
-          if (cachedKey) {
-            apiKey = cachedKey;
-          }
-        }
+    window.initMap = function() {
+      window.gmapsLoaded = true;
+      // Process any deferred initializations
+      while (window.gmapsDeferredInitializations.length > 0) {
+        var init = window.gmapsDeferredInitializations.shift();
+        window.initializeGoogleMap(init.containerId, init.lat, init.lng, init.zoom, init.markers, init.route);
       }
-
-      var script = document.createElement('script');
-      script.src = "https://maps.googleapis.com/maps/api/js?key=" + apiKey + "&libraries=places";
-      script.async = true;
-      script.defer = true;
-      script.onload = function() {
-        window.gmapsLoaded = true;
-        // Process any deferred initializations
-        while (window.gmapsDeferredInitializations.length > 0) {
-          var init = window.gmapsDeferredInitializations.shift();
-          window.initializeGoogleMap(init.containerId, init.lat, init.lng, init.zoom, init.markers, init.route);
-        }
-      };
-      script.onerror = function() {
-        console.error("Failed to load Google Maps script. Check your API key: " + apiKey);
-      };
-      document.head.appendChild(script);
-    })();
+    };
   </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places&callback=initMap" async defer></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

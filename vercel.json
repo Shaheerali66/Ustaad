@@ -1,4 +1,5 @@
 {
-  "buildCommand": "flutter build web --release && sed -i \"s/NEXT_PUBLIC_GOOGLE_MAPS_API_KEY/$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY/g\" build/web/index.html",
-  "outputDirectory": "build/web"
+  "buildCommand": "flutter build web --release",
+  "outputDirectory": "build/web",
+  "installCommand": "flutter pub get"
 }
