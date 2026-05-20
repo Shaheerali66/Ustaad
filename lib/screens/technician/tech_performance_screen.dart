@@ -11,7 +11,7 @@ class TechPerformanceScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
-        title: Text('Khidmat AI', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
+        title: Text('USTAAD', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
         actions: [IconButton(icon: const Icon(Icons.location_on_outlined), onPressed: () {})],
       ),
       body: SingleChildScrollView(

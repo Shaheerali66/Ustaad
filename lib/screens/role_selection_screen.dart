@@ -27,7 +27,7 @@ class RoleSelectionScreen extends StatelessWidget {
                       const Icon(Icons.auto_awesome, size: 32, color: AppColors.tertiaryFixedDim),
                       const SizedBox(height: 8),
                       Text(
-                        'Join Khidmat AI',
+                        'Join USTAAD',
                         style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.primary, letterSpacing: -0.52),
                       ),
                       const SizedBox(height: 8),

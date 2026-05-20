@@ -138,7 +138,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
             ),
             const Spacer(),
             Text(
-              'Khidmat AI',
+              'USTAAD',
               style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
             ),
             const Spacer(),
@@ -940,7 +940,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
                       children: [
                         Text('Service Receipt', style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 4),
-                        Text('Khidmat AI', style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text('USTAAD', style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600)),
                       ],
                     ),
                     const Icon(Icons.receipt_long, color: Colors.white, size: 36),
@@ -1056,7 +1056,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
                     Center(
                       child: Column(
                         children: [
-                          Text('Thank you for choosing Khidmat AI!', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          Text('Thank you for choosing USTAAD!', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
                           const SizedBox(height: 4),
                           Text('Smart Service, Delivered.', style: GoogleFonts.inter(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.onSurfaceVariant)),
                         ],

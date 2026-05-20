@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.khidmatai" "\0"
-            VALUE "FileDescription", "khidmat_ai" "\0"
+            VALUE "CompanyName", "com.ustaadai" "\0"
+            VALUE "FileDescription", "ustaad" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "khidmat_ai" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.khidmatai. All rights reserved." "\0"
-            VALUE "OriginalFilename", "khidmat_ai.exe" "\0"
-            VALUE "ProductName", "khidmat_ai" "\0"
+            VALUE "InternalName", "ustaad" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.ustaadai. All rights reserved." "\0"
+            VALUE "OriginalFilename", "ustaad.exe" "\0"
+            VALUE "ProductName", "ustaad" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

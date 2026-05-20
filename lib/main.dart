@@ -10,17 +10,17 @@ void main() {
   UserDatabase.init();
   BookingsRepository.init();
   DocumentDatabase.syncFromCloudWithInfo();
-  runApp(const KhidmatAiApp());
+  runApp(const USTAADAiApp());
 }
 
 
-class KhidmatAiApp extends StatelessWidget {
-  const KhidmatAiApp({super.key});
+class USTAADAiApp extends StatelessWidget {
+  const USTAADAiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Khidmat AI',
+      title: 'USTAAD',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: appRouter,

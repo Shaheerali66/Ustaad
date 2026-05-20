@@ -137,7 +137,7 @@ class _TechRegistrationScreenState extends State<TechRegistrationScreen> {
       backgroundColor: AppColors.surface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.go('/role-selection')),
-        title: Text('Khidmat AI', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
+        title: Text('USTAAD', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
         centerTitle: true,
       ),
       body: LayoutBuilder(

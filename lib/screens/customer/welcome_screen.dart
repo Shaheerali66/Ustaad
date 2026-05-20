@@ -80,7 +80,7 @@ class WelcomeScreen extends StatelessWidget {
                           const SizedBox(height: 24),
                           // Brand Name
                           Text(
-                            'Khidmat AI',
+                            'USTAAD',
                             style: GoogleFonts.inter(
                               fontSize: 32,
                               fontWeight: FontWeight.w800,

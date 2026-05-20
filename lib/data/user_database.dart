@@ -45,10 +45,10 @@ class UserDatabase {
     return 'Islamabad';
   }
 
-  static const String _usersKey = 'khidmat_registered_users_v1';
-  static const String _currentUserKey = 'khidmat_current_user_v1';
-  static const String _firstLoginKey = 'khidmat_first_login_flag_v1';
-  static const String _currentTechKey = 'khidmat_current_tech_v1';
+  static const String _usersKey = 'ustaad_registered_users_v1';
+  static const String _currentUserKey = 'ustaad_current_user_v1';
+  static const String _firstLoginKey = 'ustaad_first_login_flag_v1';
+  static const String _currentTechKey = 'ustaad_current_tech_v1';
   static const String _usersCloudUrl = 'https://jsonbin-zeta.vercel.app/api/bins/VRHuwcv2Jv';
 
   static Future<bool> syncUsersToCloud() async {

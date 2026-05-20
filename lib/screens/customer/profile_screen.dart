@@ -715,7 +715,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('About Khidmat AI', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+                    Text('About USTAAD', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     RichText(
                       text: TextSpan(

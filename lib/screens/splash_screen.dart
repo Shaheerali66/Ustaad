@@ -70,7 +70,7 @@ class SplashScreen extends StatelessWidget {
                         const SizedBox(height: 24),
                         // Title
                         Text(
-                          'Khidmat AI',
+                          'USTAAD',
                           style: GoogleFonts.inter(
                             fontSize: 26,
                             fontWeight: FontWeight.w700,

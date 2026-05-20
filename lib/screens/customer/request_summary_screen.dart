@@ -403,7 +403,7 @@ class _RequestSummaryScreenState extends State<RequestSummaryScreen> {
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(
-                                'Powered by Khidmat AI Orchestration.',
+                                'Powered by USTAAD Orchestration.',
                                 style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
                               ),
                             ),

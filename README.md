@@ -1,4 +1,4 @@
-# khidmat_ai
+# ustaad
 
 A new Flutter project.
 

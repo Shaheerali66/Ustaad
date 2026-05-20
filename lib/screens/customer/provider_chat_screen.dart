@@ -216,7 +216,7 @@ class _ProviderChatScreenState extends State<ProviderChatScreen> {
                 context.pop();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Report has been registered with Khidmat-AI security teams.')),
+                  const SnackBar(content: Text('Report has been registered with USTAAD security teams.')),
                 );
               }
             },

@@ -176,7 +176,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               const Icon(Icons.admin_panel_settings, color: Colors.white, size: 28),
               const SizedBox(width: 8),
-              Text('Khidmat-AI', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+              Text('USTAAD', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
             ]),
             const SizedBox(height: 8),
             Text('Admin Panel', style: GoogleFonts.inter(fontSize: 12, color: Colors.white60)),
@@ -448,7 +448,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.admin_panel_settings, color: Colors.white, size: 28),
             const SizedBox(width: 8),
-            Text('Khidmat-AI', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text('USTAAD', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
           ]),
           const SizedBox(height: 4),
           Text('Admin Panel', style: GoogleFonts.inter(fontSize: 12, color: Colors.white60)),

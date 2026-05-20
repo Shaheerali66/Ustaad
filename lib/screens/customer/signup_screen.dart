@@ -312,7 +312,7 @@ class _SignupScreenState extends State<SignupScreen> {
         title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
         content: SingleChildScrollView(
           child: Text(
-            'Welcome to Khidmat AI services! By using our platform, you agree to connect with verified service providers honestly and verify final pricing before service initiation. Your details are secured locally on your device for absolute privacy.',
+            'Welcome to USTAAD services! By using our platform, you agree to connect with verified service providers honestly and verify final pricing before service initiation. Your details are secured locally on your device for absolute privacy.',
             style: GoogleFonts.inter(fontSize: 14, height: 1.5),
           ),
         ),
@@ -355,7 +355,7 @@ class _SignupScreenState extends State<SignupScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Welcome to Khidmat AI, ${_nameController.text.trim()}!',
+                'Welcome to USTAAD, ${_nameController.text.trim()}!',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w600),
               ),
               backgroundColor: AppColors.primary,
@@ -409,7 +409,7 @@ class _SignupScreenState extends State<SignupScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Join Khidmat AI',
+                  'Join USTAAD',
                   style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.onBackground, letterSpacing: -0.5),
                 ),
                 const SizedBox(height: 6),

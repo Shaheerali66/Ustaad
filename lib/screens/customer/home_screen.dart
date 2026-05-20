@@ -374,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const Spacer(),
-                Text('Khidmat AI', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                Text('USTAAD', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primary)),
                 const Spacer(),
                 InkWell(
                   onTap: _showCityChangeSheet,
@@ -589,7 +589,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Icon(Icons.auto_awesome, size: 14, color: AppColors.onSurfaceVariant),
                 const SizedBox(width: 4),
-                Text('Powered by Khidmat AI', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant)),
+                Text('Powered by USTAAD', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant)),
                 const Spacer(),
                 Container(
                   width: 40, height: 40,

@@ -1,4 +1,4 @@
-package com.khidmatai.khidmat_ai
+package com.ustaadai.ustaad
 
 import io.flutter.embedding.android.FlutterActivity
 

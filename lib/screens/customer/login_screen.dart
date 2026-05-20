@@ -275,7 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Sign in to your Khidmat AI account to continue booking services',
+                          'Sign in to your USTAAD account to continue booking services',
                           style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
                         ),
                         const SizedBox(height: 32),

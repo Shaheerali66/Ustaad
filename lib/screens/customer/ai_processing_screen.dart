@@ -112,7 +112,7 @@ class _AiProcessingScreenState extends State<AiProcessingScreen> {
               ),
             ),
             const Spacer(),
-            Text('Khidmat AI Engine', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
+            Text('USTAAD Engine', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
             const Spacer(),
             const Icon(Icons.auto_awesome, color: AppColors.primary),
           ],

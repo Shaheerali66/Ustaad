@@ -202,8 +202,8 @@ class BookingsRepository {
   static List<BookingData> _bookings = [];
   static List<Map<String, dynamic>> _complaints = [];
 
-  static const String _bookingsKey = 'khidmat_bookings_v2';
-  static const String _complaintsKey = 'khidmat_complaints_v2';
+  static const String _bookingsKey = 'ustaad_bookings_v2';
+  static const String _complaintsKey = 'ustaad_complaints_v2';
 
   static const String _bookingsCloudUrl = 'https://jsonbin-zeta.vercel.app/api/bins/L5f2Y_PZP-';
   static const String _complaintsCloudUrl = 'https://jsonbin-zeta.vercel.app/api/bins/beyrzqQzfw';

@@ -179,7 +179,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
             }
           },
         ),
-        title: Text('Khidmat AI Match', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
+        title: Text('USTAAD Match', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -430,7 +430,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                   const SizedBox(height: 12),
                   Text('Rate after completion', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Text('Your feedback helps us maintain high quality Khidmat across the platform.', style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant), textAlign: TextAlign.center),
+                  Text('Your feedback helps us maintain high quality USTAAD across the platform.', style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant), textAlign: TextAlign.center),
                   const SizedBox(height: 16),
                   OutlinedButton(
                     onPressed: () {},
