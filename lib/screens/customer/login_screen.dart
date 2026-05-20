@@ -94,8 +94,10 @@ class _LoginScreenState extends State<LoginScreen> {
         // Verify this is a customer account
         final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         if (doc.exists && doc.data()?['role'] == 'customer') {
-          // Store locally if needed or just rely on Firebase
-          UserDatabase.login(email, password); // Keep sync with existing logic if needed
+          // Force login using Firestore data so router guard sees isAuthenticated = true
+          final userData = doc.data()!;
+          userData['email'] = email; // ensure email is explicitly present
+          UserDatabase.forceLogin(userData);
           
           if (mounted) {
             setState(() {

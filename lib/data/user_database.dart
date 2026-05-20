@@ -260,6 +260,16 @@ class UserDatabase {
     return false;
   }
 
+  static void forceLogin(Map<String, dynamic> userData) {
+    init(); // Ensure loaded
+    _currentUser = Map<String, dynamic>.from(userData);
+    _isFirstLoginAfterSignup = false;
+    try {
+      PlatformStorage.setString(_firstLoginKey, 'false');
+    } catch (_) {}
+    _saveCurrentUser();
+  }
+
   static Future<bool> signup(Map<String, dynamic> userData) async {
     await syncUsersFromCloud();
     await DocumentDatabase.syncFromCloud();
