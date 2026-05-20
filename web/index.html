@@ -261,6 +261,23 @@
       }
     };
   </script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyBqJOkhXknOEHRNljCvxqZJBXaKaxyTtbg",
+      authDomain: "ustaad-3f94f.firebaseapp.com",
+      projectId: "ustaad-3f94f",
+      storageBucket: "ustaad-3f94f.firebasestorage.app",
+      messagingSenderId: "724767300046",
+      appId: "1:724767300046:web:66b0a33c67319ed6af339f",
+      measurementId: "G-6RB5XE7XBQ"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCfyfXA-jSL2Gwc9p3lML2V6z-AwKW0m0w&libraries=places&callback=initMap" async defer></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

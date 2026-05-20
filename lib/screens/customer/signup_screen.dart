@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/user_database.dart';
 import '../../data/document_database.dart';
 import '../../widgets/google_places_autocomplete.dart';
@@ -326,36 +328,54 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  void _handleSignup() {
+  void _handleSignup() async {
     if (!_isFormValid()) return;
 
     setState(() {
       _isSubmitting = true;
     });
 
-    Future.delayed(const Duration(milliseconds: 1500), () async {
-      if (mounted) {
-        final success = await UserDatabase.signup({
-          'fullName': _nameController.text.trim(),
-          'email': _emailController.text.trim().toLowerCase(),
-          'phone': _phoneController.text.trim(),
-          'address': _addressController.text.trim(),
-          'city': _selectedCity!,
-          'password': _passwordController.text.trim(),
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text.trim();
+    final fullName = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final address = _addressController.text.trim();
+    final city = _selectedCity!;
+
+    try {
+      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = userCredential.user;
+      if (user != null) {
+        // Create user document in Firestore
+        final userData = {
+          'fullName': fullName,
+          'email': email,
+          'phone': phone,
+          'address': address,
+          'city': city,
+          'role': 'customer',
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(userData);
+
+        // Keep local sync for now if needed by other parts of the app
+        await UserDatabase.signup({
+          ...userData,
+          'password': password,
         });
 
         if (mounted) {
           setState(() {
             _isSubmitting = false;
           });
-        }
-
-        if (success) {
-          // Toast verification message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Welcome to USTAAD, ${_nameController.text.trim()}!',
+                'Welcome to USTAAD, $fullName!',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w600),
               ),
               backgroundColor: AppColors.primary,
@@ -363,23 +383,48 @@ class _SignupScreenState extends State<SignupScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           );
-          // Navigate to home screen
           context.go('/customer/home');
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'This email is already registered. Please login or use a different email.',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-              ),
-              backgroundColor: AppColors.error,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
         }
       }
-    });
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        String message = e.message ?? 'Registration failed. Please try again.';
+        if (e.code == 'email-already-in-use') {
+          message = 'This email is already registered. Please login or use a different email.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'An error occurred: $error',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
   }
 
   @override

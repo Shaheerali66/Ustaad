@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/document_database.dart';
 
 // Conditional import for web-only APIs
@@ -175,7 +177,7 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
 
-    // Save to Database
+    // Save to local database for caching
     DocumentDatabase.saveDocuments(
       front: cnicFrontFile,
       frontName: cnicFrontName,
@@ -191,24 +193,79 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
       certSize: certSize,
     );
 
-    // Upload to cloud real-time database
-    final success = await DocumentDatabase.addOnboardedTechnician();
+    try {
+      // 1. Create Firebase Auth user
+      final email = DocumentDatabase.currentEmail ?? '';
+      final password = DocumentDatabase.currentPassword ?? '';
 
-    if (mounted) {
-      setState(() => _isSubmitting = false);
-      if (success) {
+      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = userCredential.user;
+      if (user != null) {
+        // 2. Save worker data to Firestore
+        final workerData = {
+          'fullName': DocumentDatabase.currentName,
+          'email': email,
+          'phone': DocumentDatabase.currentPhone,
+          'cnic': DocumentDatabase.currentCnic,
+          'serviceType': DocumentDatabase.serviceType,
+          'experienceLevel': DocumentDatabase.experienceLevel,
+          'hourlyRate': DocumentDatabase.hourlyRate,
+          'availability': DocumentDatabase.availability,
+          'status': 'Pending Approval', // Default status
+          'role': 'worker',
+          'createdAt': FieldValue.serverTimestamp(),
+          // Document references or base64 can be stored, though Firebase Storage is better for large files.
+          // We will store minimal references here to avoid hitting Firestore limits if base64 is large.
+          'documents': {
+            'hasProfilePhoto': profilePhotoFile != null,
+            'hasCnicFront': cnicFrontFile != null,
+            'hasCnicBack': cnicBackFile != null,
+            'hasCert': certFile != null,
+          }
+        };
+
+        await FirebaseFirestore.instance.collection('workers').doc(user.uid).set(workerData);
+        
+        // 3. Optional: Add to local DB for app flow continuity
+        await DocumentDatabase.addOnboardedTechnician();
+
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Application submitted successfully! Stored in master cloud database.'),
+              backgroundColor: Colors.teal,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          context.go('/technician/submitted');
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        String message = e.message ?? 'Registration failed. Please try again.';
+        if (e.code == 'email-already-in-use') {
+          message = 'This email is already registered. Please login or use a different email.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Application submitted successfully! Stored in master cloud database.'),
-            backgroundColor: Colors.teal,
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
-        context.go('/technician/submitted');
-      } else {
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Connection failed. Please check your internet connection and try again.'),
+          SnackBar(
+            content: Text('An error occurred: $e'),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),

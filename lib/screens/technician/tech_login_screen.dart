@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/user_database.dart';
 import '../../data/document_database.dart';
 
@@ -34,98 +36,83 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
     });
 
     try {
-      // Sync from cloud first to ensure we have the absolute latest technician statuses and applications
-      await DocumentDatabase.syncFromCloudWithInfo();
-      await UserDatabase.syncUsersFromCloud();
-
       final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text.trim();
 
-      final isCustomer = UserDatabase.users.any(
-        (u) => u['email']?.toString().toLowerCase().trim() == email,
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
 
-      if (isCustomer) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'This email is registered as a customer account. Please login from the customer login screen.',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+      final user = userCredential.user;
+      if (user != null) {
+        // Verify this is a worker account
+        final doc = await FirebaseFirestore.instance.collection('workers').doc(user.uid).get();
+        if (doc.exists && doc.data()?['role'] == 'worker') {
+          final tech = doc.data()!;
+          tech['id'] = user.uid; // Add document ID into the map for local sync
+          final status = (tech['status']?.toString() ?? 'Pending Approval').trim().toLowerCase();
+
+          if (status == 'approved') {
+            UserDatabase.techLogin(tech); // Keep local sync
+            if (mounted) {
+              context.go('/technician/home');
+            }
+          } else if (status == 'rejected') {
+            await FirebaseAuth.instance.signOut();
+            if (mounted) {
+              _showReviewDialog('Your application was rejected. Please contact support.', isRejected: true);
+            }
+          } else {
+            await FirebaseAuth.instance.signOut();
+            if (mounted) {
+              _showReviewDialog('Your account is under review. Please wait for admin approval.');
+            }
+          }
+        } else {
+          // Not a worker
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'This email is registered as a customer account. Please login from the customer login screen.',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                ),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
+            );
+          }
         }
-        return;
       }
-
-      final techs = DocumentDatabase.onboardedTechnicians;
-      final hasTech = techs.any((t) => t['email']?.toString().toLowerCase().trim() == email);
-
-      if (!hasTech) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'No account found with this email.',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-              ),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        String message = e.message ?? 'Unable to complete login. Please try again.';
+        if (e.code == 'user-not-found') {
+          message = 'No account found with this email.';
+        } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+          message = 'Incorrect password. Please try again.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
-          );
-        }
-        return;
-      }
-
-      final index = techs.indexWhere((t) =>
-          t['email']?.toString().toLowerCase().trim() == email &&
-          t['password']?.toString().trim() == password);
-
-      if (index == -1) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Incorrect password. Please try again.',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-              ),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
-        return;
-      }
-
-      final tech = techs[index];
-      final status = (tech['status']?.toString() ?? 'Pending Approval').trim().toLowerCase();
-
-      if (status == 'approved') {
-        UserDatabase.techLogin(tech);
-        if (mounted) {
-          context.go('/technician/home');
-        }
-      } else if (status == 'rejected') {
-        if (mounted) {
-          _showReviewDialog('Your application was rejected. Please contact support.', isRejected: true);
-        }
-      } else {
-        if (mounted) {
-          _showReviewDialog('Your account is under review. Please wait for admin approval.');
-        }
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Unable to complete login. Please try again.',
+              'An error occurred: $error',
               style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
             backgroundColor: Colors.redAccent,

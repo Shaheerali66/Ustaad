@@ -6,8 +6,21 @@ import 'data/user_database.dart';
 import 'data/bookings_repository.dart';
 import 'data/document_database.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Set Auth Persistence to LOCAL
+  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+
   await PlatformStorage.init();
   UserDatabase.init();
   BookingsRepository.init();

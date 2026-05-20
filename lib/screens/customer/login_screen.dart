@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/user_database.dart';
 import '../../data/document_database.dart';
 
@@ -70,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return _validateEmail() == null && _validatePassword() == null;
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     if (!_isFormValid()) return;
 
     setState(() {
@@ -78,71 +80,72 @@ class _LoginScreenState extends State<LoginScreen> {
       _loginError = null;
     });
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        final email = _emailController.text.trim().toLowerCase();
-        final password = _passwordController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text.trim();
 
-        final isWorker = DocumentDatabase.onboardedTechnicians.any(
-          (t) => t['email']?.toString().toLowerCase().trim() == email,
-        );
+    try {
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-        if (isWorker) {
-          setState(() {
-            _isSubmitting = false;
-            _loginError = 'This email is registered as a worker account. Please login from the worker login screen.';
-          });
-          return;
-        }
-
-        final hasCustomer = UserDatabase.users.any(
-          (u) => u['email']?.toString().toLowerCase().trim() == email.toLowerCase(),
-        );
-
-        if (!hasCustomer) {
-          setState(() {
-            _isSubmitting = false;
-            _loginError = 'No account found with this email.';
-          });
-          return;
-        }
-
-        final bool success;
-        try {
-          success = UserDatabase.login(email, password);
-        } catch (error) {
-          setState(() {
-            _isSubmitting = false;
-            _loginError = 'Unable to complete login. Please try again.';
-          });
-          return;
-        }
-
-        setState(() {
-          _isSubmitting = false;
-        });
-
-        if (success) {
-          final user = UserDatabase.currentUser;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Welcome back, ${user?['fullName'] ?? 'User'}!',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+      final user = userCredential.user;
+      if (user != null) {
+        // Verify this is a customer account
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists && doc.data()?['role'] == 'customer') {
+          // Store locally if needed or just rely on Firebase
+          UserDatabase.login(email, password); // Keep sync with existing logic if needed
+          
+          if (mounted) {
+            setState(() {
+              _isSubmitting = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Welcome back, ${doc.data()?['fullName'] ?? 'User'}!',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                ),
+                backgroundColor: AppColors.primary,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              backgroundColor: AppColors.primary,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-          context.go('/customer/home');
+            );
+            context.go('/customer/home');
+          }
         } else {
-          setState(() {
-            _loginError = 'Incorrect password. Please try again.';
-          });
+          // Not a customer
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _isSubmitting = false;
+              _loginError = 'This email is registered as a worker account. Please login from the worker login screen.';
+            });
+          }
         }
       }
-    });
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          if (e.code == 'user-not-found') {
+            _loginError = 'No account found with this email.';
+          } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+            _loginError = 'Incorrect password. Please try again.';
+          } else {
+            _loginError = e.message ?? 'Unable to complete login. Please try again.';
+          }
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _loginError = 'An error occurred: $error';
+        });
+      }
+    }
   }
 
   void _showForgotPasswordDialog() {
