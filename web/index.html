@@ -41,6 +41,150 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXSs5a4Cac5z6doeN-Neg6DJ2KZrj3VKA&libraries=places"></script>
+  <script>
+    window.getPlaceSuggestions = function(input, callback) {
+      if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+        callback([]);
+        return;
+      }
+      var service = new google.maps.places.AutocompleteService();
+      service.getPlacePredictions({
+        input: input,
+        componentRestrictions: { country: 'pk' }
+      }, function(predictions, status) {
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+          callback([]);
+          return;
+        }
+        var results = [];
+        for (var i = 0; i < predictions.length; i++) {
+          results.push({
+            description: predictions[i].description,
+            placeId: predictions[i].place_id
+          });
+        }
+        callback(results);
+      });
+    };
+
+    window.geocodeAddress = function(address, callback) {
+      if (typeof google === 'undefined' || !google.maps) {
+        callback(null);
+        return;
+      }
+      var geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: address }, function(results, status) {
+        if (status === google.maps.GeocoderStatus.OK && results && results[0]) {
+          var loc = results[0].geometry.location;
+          callback({
+            lat: loc.lat(),
+            lng: loc.lng(),
+            formattedAddress: results[0].formatted_address
+          });
+        } else {
+          callback(null);
+        }
+      });
+    };
+
+    window.getDirectionsRoute = function(origin, destination, callback) {
+      if (typeof google === 'undefined' || !google.maps) {
+        callback(null);
+        return;
+      }
+      var directionsService = new google.maps.DirectionsService();
+      directionsService.route({
+        origin: origin,
+        destination: destination,
+        travelMode: google.maps.TravelMode.DRIVING
+      }, function(result, status) {
+        if (status === google.maps.DirectionsStatus.OK) {
+          callback(result);
+        } else {
+          callback(null);
+        }
+      });
+    };
+
+    window.getDistanceMatrix = function(origin, destination, callback) {
+      if (typeof google === 'undefined' || !google.maps) {
+        callback(null);
+        return;
+      }
+      var service = new google.maps.DistanceMatrixService();
+      service.getDistanceMatrix({
+        origins: [origin],
+        destinations: [destination],
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.METRIC
+      }, function(response, status) {
+        if (status === google.maps.DistanceMatrixStatus.OK && response && response.rows[0] && response.rows[0].elements[0]) {
+          var element = response.rows[0].elements[0];
+          if (element.status === 'OK') {
+            callback({
+              distanceText: element.distance.text,
+              distanceValue: element.distance.value,
+              durationText: element.duration.text,
+              durationValue: element.duration.value
+            });
+            return;
+          }
+        }
+        callback(null);
+      });
+    };
+
+    window.mapsInstances = {};
+    window.initializeGoogleMap = function(containerId, lat, lng, zoom, markers, route) {
+      var element = document.getElementById(containerId);
+      if (!element) {
+        setTimeout(function() {
+          var el2 = document.getElementById(containerId);
+          if (el2) window.initializeGoogleMap(containerId, lat, lng, zoom, markers, route);
+        }, 100);
+        return;
+      }
+      
+      var mapOptions = {
+        center: { lat: lat, lng: lng },
+        zoom: zoom,
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        disableDefaultUI: false,
+      };
+      
+      var map = new google.maps.Map(element, mapOptions);
+      window.mapsInstances[containerId] = map;
+      
+      if (markers && markers.length) {
+        markers.forEach(function(m) {
+          new google.maps.Marker({
+            position: { lat: m.lat, lng: m.lng },
+            map: map,
+            title: m.title || ""
+          });
+        });
+      }
+      
+      if (route && route.origin && route.destination) {
+        var directionsService = new google.maps.DirectionsService();
+        var directionsRenderer = new google.maps.DirectionsRenderer({
+          map: map,
+          suppressMarkers: false
+        });
+        
+        directionsService.route({
+          origin: route.origin,
+          destination: route.destination,
+          travelMode: google.maps.TravelMode.DRIVING
+        }, function(response, status) {
+          if (status === google.maps.DirectionsStatus.OK) {
+            directionsRenderer.setDirections(response);
+          }
+        });
+      }
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

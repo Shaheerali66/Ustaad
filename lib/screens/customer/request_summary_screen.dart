@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
+import '../../widgets/google_places_autocomplete.dart';
 
 class RequestSummaryScreen extends StatefulWidget {
   final String? queryText;
@@ -333,15 +334,10 @@ class _RequestSummaryScreenState extends State<RequestSummaryScreen> {
                               // Location
                               Text('Location Address', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant)),
                               const SizedBox(height: 6),
-                              TextFormField(
+                              GooglePlacesAutocompleteField(
                                 controller: _locationController,
-                                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
-                                decoration: InputDecoration(
-                                  hintText: 'e.g. Sector G-13, Islamabad',
-                                  prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.primary),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
+                                hintText: 'e.g. Sector G-13, Islamabad',
+                                prefixIcon: Icons.location_on_outlined,
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Please enter address' : null,
                               ),
                               const SizedBox(height: 16),

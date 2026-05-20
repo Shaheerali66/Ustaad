@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
+import '../../widgets/google_places_autocomplete.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -314,10 +315,9 @@ class _SignupScreenState extends State<SignupScreen> {
       _isSubmitting = true;
     });
 
-    // Simulate database signup saving
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(const Duration(milliseconds: 1500), () async {
       if (mounted) {
-        final success = UserDatabase.signup({
+        final success = await UserDatabase.signup({
           'fullName': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'phone': _phoneController.text.trim(),
@@ -326,9 +326,11 @@ class _SignupScreenState extends State<SignupScreen> {
           'password': _passwordController.text,
         });
 
-        setState(() {
-          _isSubmitting = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
 
         if (success) {
           // Toast verification message
@@ -481,20 +483,18 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Address Input
                 _buildFieldLabel('Complete Address *'),
-                TextFormField(
+                GooglePlacesAutocompleteField(
                   controller: _addressController,
-                  focusNode: _addressFocusNode,
-                  maxLines: 3,
-                  minLines: 2,
-                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
-                  decoration: _buildInputDecoration(
-                    hint: 'House number, street, sector, area info...',
-                    icon: Icons.map_outlined,
-                    errorText: _addressTouched ? _validateAddress() : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
+                  hintText: 'House number, street, sector, area info...',
+                  prefixIcon: Icons.map_outlined,
+                  maxLines: 2,
+                  minLines: 1,
+                  validator: (value) {
+                    final val = value ?? '';
+                    if (val.trim().isEmpty) return 'Address is required';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
 

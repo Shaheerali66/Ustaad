@@ -74,41 +74,57 @@ class DocumentDatabase {
 
   // Update a technician record by ID securely (Cloud transaction style)
   static Future<bool> updateTechnician(String id, Map<String, dynamic> updatedData) async {
-    // 1. Update cached list locally first
-    final list = List<Map<String, dynamic>>.from(onboardedTechnicians);
-    final index = list.indexWhere((t) => t['id']?.toString() == id);
-    if (index != -1) {
-      updatedData.forEach((key, value) {
-        list[index][key] = value;
-      });
-      _cachedTechnicians = list;
-      persistChanges();
-    }
-
+    List<Map<String, dynamic>> targetList = [];
+    bool cloudLoaded = false;
     try {
-      // 2. Try to sync to cloud
       final response = await http.get(Uri.parse(_cloudUrl));
       if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(response.body);
-        final cloudList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+        targetList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+        cloudLoaded = true;
+      }
+    } catch (_) {}
 
-        final cloudIndex = cloudList.indexWhere((t) => t['id']?.toString() == id);
-        if (cloudIndex != -1) {
-          updatedData.forEach((key, value) {
-            cloudList[cloudIndex][key] = value;
-          });
-          
+    if (!cloudLoaded) {
+      targetList = List<Map<String, dynamic>>.from(onboardedTechnicians);
+    }
+
+    final index = targetList.indexWhere((t) => t['id']?.toString() == id);
+    if (index != -1) {
+      updatedData.forEach((key, value) {
+        targetList[index][key] = value;
+      });
+      _cachedTechnicians = targetList;
+      persistChanges();
+
+      if (cloudLoaded) {
+        try {
           await http.put(
             Uri.parse(_cloudUrl),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(cloudList),
+            body: jsonEncode(targetList),
           );
-        }
+        } catch (_) {}
       }
-    } catch (_) {
-      // Fail silently to keep application running offline
+    } else {
+      final localList = List<Map<String, dynamic>>.from(onboardedTechnicians);
+      final localIdx = localList.indexWhere((t) => t['id']?.toString() == id);
+      if (localIdx != -1) {
+        updatedData.forEach((key, value) {
+          localList[localIdx][key] = value;
+        });
+        _cachedTechnicians = localList;
+        persistChanges();
+        try {
+          await http.put(
+            Uri.parse(_cloudUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(localList),
+          );
+        } catch (_) {}
+      }
     }
-    return true; // Always succeed locally
+    return true;
   }
 
   // Load from LocalStorage (initial instant offline load)

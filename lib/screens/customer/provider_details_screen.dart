@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/bookings_repository.dart';
+import '../../utils/google_maps_service.dart';
+import '../../widgets/google_map_widget.dart';
 
 class ProviderDetailsScreen extends StatefulWidget {
   final Map<String, dynamic>? technician;
@@ -29,12 +31,54 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   ];
 
   late final List<DateTime> _dates;
+  double _centerLat = 33.6844;
+  double _centerLng = 73.0479;
+  List<Map<String, dynamic>> _markers = [];
 
   @override
   void initState() {
     super.initState();
     // Generate next 7 days for the visual slot picker
     _dates = List.generate(7, (i) => DateTime.now().add(Duration(days: i + 1)));
+    _initMapCoordinates();
+  }
+
+  void _initMapCoordinates() async {
+    final area = (widget.technician?['area'] ?? 'Sector G-13').toString();
+    final city = (widget.technician?['city'] ?? 'Islamabad').toString();
+    final addressText = '$area, $city';
+    final lowerCity = city.toLowerCase();
+    
+    double initLat = 33.6844;
+    double initLng = 73.0479;
+    if (lowerCity.contains('lahore')) {
+      initLat = 31.5204;
+      initLng = 74.3587;
+    } else if (lowerCity.contains('karachi')) {
+      initLat = 24.8607;
+      initLng = 67.0011;
+    } else if (lowerCity.contains('hyderabad')) {
+      initLat = 25.3960;
+      initLng = 68.3578;
+    }
+    setState(() {
+      _centerLat = initLat;
+      _centerLng = initLng;
+      _markers = [
+        {'lat': initLat, 'lng': initLng, 'title': widget.technician?['name'] ?? 'Provider'}
+      ];
+    });
+
+    final result = await GoogleMapsService.geocodeAddress(addressText);
+    if (result != null && mounted) {
+      setState(() {
+        _centerLat = result['lat'] as double;
+        _centerLng = result['lng'] as double;
+        _markers = [
+          {'lat': _centerLat, 'lng': _centerLng, 'title': widget.technician?['name'] ?? 'Provider'}
+        ];
+      });
+    }
   }
 
   @override
@@ -419,32 +463,12 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
                   const SizedBox(height: 10),
                   Container(
                     height: 150,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.surfaceVariant),
-                    ),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: CustomPaint(
-                            size: const Size(double.infinity, 150),
-                            painter: _LocationMapPainter(area, city),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 12, left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.surfaceVariant)),
-                            child: Text(
-                              'Located: $area',
-                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.onSurface),
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: GoogleMapWidget(
+                      centerLat: _centerLat,
+                      centerLng: _centerLng,
+                      zoom: 14,
+                      markers: _markers,
+                      height: 150,
                     ),
                   ),
                 ],

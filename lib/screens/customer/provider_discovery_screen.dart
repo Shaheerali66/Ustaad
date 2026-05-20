@@ -6,6 +6,9 @@ import '../../theme/app_colors.dart';
 import '../../data/technicians_data.dart';
 import '../../data/bookings_repository.dart';
 import '../../data/document_database.dart';
+import '../../utils/google_maps_service.dart';
+import '../../widgets/google_map_widget.dart';
+import '../../data/user_database.dart';
 
 class ProviderDiscoveryScreen extends StatefulWidget {
   final Map<String, dynamic>? bookingDetails;
@@ -20,17 +23,75 @@ class _ProviderDiscoveryScreenState extends State<ProviderDiscoveryScreen> {
   String _selectedSort = 'Rating'; // Options: 'Distance', 'Rating', 'Availability', 'Price'
   bool _expandSearch = false; // Set to true when user gives explicit consent to expand search
   
+  double _centerLat = 33.6844;
+  double _centerLng = 73.0479;
+  List<Map<String, dynamic>> _markers = [];
+  bool _hasGeocoded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initMapCoordinates();
+  }
+
+  void _initMapCoordinates() async {
+    final locationText = (widget.bookingDetails?['location'] ?? UserDatabase.activeLocation).toString();
+    final lowerLoc = locationText.toLowerCase();
+    double initLat = 33.6844;
+    double initLng = 73.0479;
+    if (lowerLoc.contains('lahore')) {
+      initLat = 31.5204;
+      initLng = 74.3587;
+    } else if (lowerLoc.contains('karachi')) {
+      initLat = 24.8607;
+      initLng = 67.0011;
+    } else if (lowerLoc.contains('hyderabad')) {
+      initLat = 25.3960;
+      initLng = 68.3578;
+    }
+    setState(() {
+      _centerLat = initLat;
+      _centerLng = initLng;
+    });
+
+    final result = await GoogleMapsService.geocodeAddress(locationText);
+    if (result != null && mounted) {
+      setState(() {
+        _centerLat = result['lat'] as double;
+        _centerLng = result['lng'] as double;
+        _hasGeocoded = true;
+      });
+      _generateMarkers();
+    }
+  }
+
+  void _generateMarkers() {
+    final list = <Map<String, dynamic>>[];
+    for (var i = 0; i < 5; i++) {
+      final double latOffset = (0.015 * ((i * 1.7) % 1.0 - 0.5));
+      final double lngOffset = (0.015 * ((i * 2.3) % 1.0 - 0.5));
+      list.add({
+        'lat': _centerLat + latOffset,
+        'lng': _centerLng + lngOffset,
+        'title': 'Provider Pin ${i + 1}',
+      });
+    }
+    setState(() {
+      _markers = list;
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
     final selectedCategory = (widget.bookingDetails?['service'] ?? 'AC Services').toString();
-    final locationText = (widget.bookingDetails?['location'] ?? 'Sector G-13, Islamabad').toString();
+    final locationText = (widget.bookingDetails?['location'] ?? UserDatabase.activeLocation).toString();
     final workText = (widget.bookingDetails?['work'] ?? 'AC servicing and cleaning').toString();
     final timeText = (widget.bookingDetails?['time'] ?? 'Tomorrow Morning (~10:00 AM)').toString();
 
     final lowerLoc = locationText.toLowerCase();
     final lowerWork = workText.toLowerCase();
     
-    String targetCity = 'Islamabad';
+    String targetCity = UserDatabase.activeCity;
     
     // Scan BOTH locationText and workText for spelling variations of target cities
     if (lowerLoc.contains('lahore') || lowerLoc.contains('lhr') ||
@@ -274,50 +335,16 @@ class _ProviderDiscoveryScreenState extends State<ProviderDiscoveryScreen> {
             if (filteredTechs.isEmpty)
               _buildNoResultsState(targetCity)
             else ...[
-              // Simulated map restricting coordinates strictly inside targetCity
+              // Real Google Map
               Container(
-                height: 180,
+                height: 200,
                 margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: AppColors.surfaceContainerLow,
-                  border: Border.all(color: AppColors.surfaceVariant),
-                ),
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: CustomPaint(
-                        size: const Size(double.infinity, 180),
-                        painter: _MiniMapPainter(filteredTechs),
-                      ),
-                    ),
-                    Positioned(
-                      top: 12, right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
-                        child: Text(
-                          '$targetCity Isolated Map',
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 12, left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.surfaceVariant)),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.gps_fixed, size: 14, color: AppColors.primary),
-                            const SizedBox(width: 6),
-                            Text('Radar: ${filteredTechs.length} pins loaded', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
-                          ],
-                        ),
-                      ),
-                    )
-                  ],
+                child: GoogleMapWidget(
+                  centerLat: _centerLat,
+                  centerLng: _centerLng,
+                  zoom: 13,
+                  markers: _markers,
+                  height: 200,
                 ),
               ),
 

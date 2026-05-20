@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
+import '../../widgets/google_places_autocomplete.dart';
 
 class QuickServiceFormScreen extends StatefulWidget {
   final String? category;
@@ -226,29 +227,15 @@ class _QuickServiceFormScreenState extends State<QuickServiceFormScreen> {
                           style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.onSurface),
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
+                        GooglePlacesAutocompleteField(
                           controller: _addressController,
-                          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
-                          decoration: InputDecoration(
-                            hintText: 'Enter street, sector, area, or city...',
-                            hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
-                            prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.primary),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.surfaceVariant),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.surfaceVariant),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                            ),
-                          ),
+                          hintText: 'Enter street, sector, area, or city...',
+                          prefixIcon: Icons.location_on_outlined,
+                          validator: (value) {
+                            final val = value ?? '';
+                            if (val.trim().isEmpty) return 'Address is required';
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 10),
                         

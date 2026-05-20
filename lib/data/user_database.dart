@@ -10,6 +10,40 @@ class UserDatabase {
 
   static Map<String, dynamic>? _currentTechnician;
 
+  static String? _temporaryLocation;
+  static String? _temporaryCity;
+
+  static String? get temporaryLocation => _temporaryLocation;
+  static String? get temporaryCity => _temporaryCity;
+
+  static set temporaryLocation(String? val) => _temporaryLocation = val;
+  static set temporaryCity(String? val) => _temporaryCity = val;
+
+  static void clearTemporaryLocation() {
+    _temporaryLocation = null;
+    _temporaryCity = null;
+  }
+
+  static String get activeLocation {
+    if (_temporaryLocation != null && _temporaryLocation!.isNotEmpty) {
+      return _temporaryLocation!;
+    }
+    if (_currentUser != null) {
+      return _currentUser!['address']?.toString() ?? 'G-13, Islamabad';
+    }
+    return 'G-13, Islamabad';
+  }
+
+  static String get activeCity {
+    if (_temporaryCity != null && _temporaryCity!.isNotEmpty) {
+      return _temporaryCity!;
+    }
+    if (_currentUser != null) {
+      return _currentUser!['city']?.toString() ?? 'Islamabad';
+    }
+    return 'Islamabad';
+  }
+
   static const String _usersKey = 'khidmat_registered_users_v1';
   static const String _currentUserKey = 'khidmat_current_user_v1';
   static const String _firstLoginKey = 'khidmat_first_login_flag_v1';
@@ -188,8 +222,8 @@ class UserDatabase {
     return false;
   }
 
-  static bool signup(Map<String, dynamic> userData) {
-    init(); // Ensure loaded
+  static Future<bool> signup(Map<String, dynamic> userData) async {
+    await syncUsersFromCloud();
     final email = userData['email']?.toString().toLowerCase().trim() ?? '';
     final index = _users.indexWhere((u) => u['email']?.toString().toLowerCase().trim() == email);
     if (index != -1) {
@@ -199,7 +233,7 @@ class UserDatabase {
     final newUserData = Map<String, dynamic>.from(userData);
     _users.add(newUserData);
     _saveUsers();
-    syncUsersToCloud();
+    await syncUsersToCloud();
 
     // Automatically log in
     _currentUser = newUserData;
@@ -221,9 +255,11 @@ class UserDatabase {
     } catch (_) {}
   }
 
-  static void updateProfile(Map<String, dynamic> updatedData) {
+  static Future<void> updateProfile(Map<String, dynamic> updatedData) async {
     if (_currentUser == null) return;
     
+    await syncUsersFromCloud();
+
     // Update local currentUser
     updatedData.forEach((key, value) {
       _currentUser![key] = value;
@@ -238,7 +274,7 @@ class UserDatabase {
         _users[index][key] = value;
       });
       _saveUsers();
-      syncUsersToCloud();
+      await syncUsersToCloud();
     }
   }
 
@@ -269,24 +305,5 @@ class UserDatabase {
       _saveUsers();
       syncUsersToCloud();
     }
-  }
-
-  static String? _temporaryLocation;
-
-  static String? get temporaryLocation => _temporaryLocation;
-
-  static set temporaryLocation(String? value) {
-    _temporaryLocation = value;
-  }
-
-  static String get activeCity {
-    if (_temporaryLocation != null) {
-      final parts = _temporaryLocation!.split(',');
-      if (parts.length > 1) {
-        return parts.last.trim();
-      }
-      return _temporaryLocation!;
-    }
-    return currentUser?['city'] ?? 'Islamabad';
   }
 }

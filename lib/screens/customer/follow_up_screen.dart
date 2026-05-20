@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/booking_state.dart';
+import '../../data/bookings_repository.dart';
+import '../../utils/google_maps_service.dart';
+import '../../widgets/google_map_widget.dart';
 
 class FollowUpScreen extends StatefulWidget {
   const FollowUpScreen({super.key});
@@ -12,6 +15,57 @@ class FollowUpScreen extends StatefulWidget {
 }
 
 class _FollowUpScreenState extends State<FollowUpScreen> {
+  double _centerLat = 33.6844;
+  double _centerLng = 73.0479;
+  String _providerOrigin = 'Sector I-8, Islamabad';
+  String _customerDestination = 'House 12, Street 4, Sector G-13, Islamabad';
+
+  @override
+  void initState() {
+    super.initState();
+    _initTrackingRoute();
+  }
+
+  void _initTrackingRoute() async {
+    final latest = BookingsRepository.bookings.isNotEmpty 
+        ? BookingsRepository.bookings.first 
+        : null;
+    final customerAddress = latest?.location ?? 'House 12, Street 4, Sector G-13, Islamabad';
+    
+    String origin = 'Sector I-8, Islamabad';
+    double initLat = 33.6844;
+    double initLng = 73.0479;
+    
+    final lower = customerAddress.toLowerCase();
+    if (lower.contains('lahore')) {
+      origin = 'Gulberg, Lahore';
+      initLat = 31.5204;
+      initLng = 74.3587;
+    } else if (lower.contains('karachi')) {
+      origin = 'Clifton, Karachi';
+      initLat = 24.8607;
+      initLng = 67.0011;
+    } else if (lower.contains('hyderabad')) {
+      origin = 'Latifabad, Hyderabad';
+      initLat = 25.3960;
+      initLng = 68.3578;
+    }
+
+    setState(() {
+      _centerLat = initLat;
+      _centerLng = initLng;
+      _providerOrigin = origin;
+      _customerDestination = customerAddress;
+    });
+
+    final result = await GoogleMapsService.geocodeAddress(customerAddress);
+    if (result != null && mounted) {
+      setState(() {
+        _centerLat = result['lat'] as double;
+        _centerLng = result['lng'] as double;
+      });
+    }
+  }
   void _showChatSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -209,6 +263,30 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                     ],
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Live Technician Tracking Map
+            Container(
+              height: 220,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceVariant),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: GoogleMapWidget(
+                  centerLat: _centerLat,
+                  centerLng: _centerLng,
+                  zoom: 12,
+                  route: {
+                    'origin': _providerOrigin,
+                    'destination': _customerDestination,
+                  },
+                  height: 220,
+                ),
               ),
             ),
             const SizedBox(height: 16),

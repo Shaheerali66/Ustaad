@@ -325,28 +325,34 @@ class BookingsRepository {
     return _complaints;
   }
 
-  static void addBooking(BookingData booking) {
+  static Future<void> addBooking(BookingData booking) async {
+    await syncBookingsFromCloud();
     // Generate simple ID if empty
     String bookingId = booking.id.isEmpty
         ? '#KAI-20260520-${(DateTime.now().millisecondsSinceEpoch % 1000).toString().padLeft(3, '0')}'
         : booking.id;
 
     final enrichedBooking = booking.copyWith(id: bookingId);
+    _bookings.removeWhere((b) => b.id == bookingId);
     _bookings.insert(0, enrichedBooking);
     _saveBookings();
-    syncBookingsToCloud();
+    await syncBookingsToCloud();
   }
 
-  static void updateBooking(BookingData booking) {
+  static Future<void> updateBooking(BookingData booking) async {
+    await syncBookingsFromCloud();
     final idx = _bookings.indexWhere((b) => b.id == booking.id);
     if (idx != -1) {
       _bookings[idx] = booking;
-      _saveBookings();
-      syncBookingsToCloud();
+    } else {
+      _bookings.insert(0, booking);
     }
+    _saveBookings();
+    await syncBookingsToCloud();
   }
 
-  static void completeBooking(String id) {
+  static Future<void> completeBooking(String id) async {
+    await syncBookingsFromCloud();
     final idx = _bookings.indexWhere((b) => b.id == id);
     if (idx != -1) {
       _bookings[idx] = _bookings[idx].copyWith(
@@ -355,11 +361,12 @@ class BookingsRepository {
         action: 'View Receipt',
       );
       _saveBookings();
-      syncBookingsToCloud();
+      await syncBookingsToCloud();
     }
   }
 
-  static void cancelBooking(String id, String reason, String notes) {
+  static Future<void> cancelBooking(String id, String reason, String notes) async {
+    await syncBookingsFromCloud();
     final idx = _bookings.indexWhere((b) => b.id == id);
     if (idx != -1) {
       _bookings[idx] = _bookings[idx].copyWith(
@@ -370,18 +377,19 @@ class BookingsRepository {
         cancellationNotes: notes,
       );
       _saveBookings();
-      syncBookingsToCloud();
+      await syncBookingsToCloud();
     }
   }
 
-  static void editBooking(
+  static Future<void> editBooking(
     String id, {
     String? providerName,
     String? date,
     String? time,
     String? address,
     String? workDetails,
-  }) {
+  }) async {
+    await syncBookingsFromCloud();
     final idx = _bookings.indexWhere((b) => b.id == id);
     if (idx != -1) {
       _bookings[idx] = _bookings[idx].copyWith(
@@ -393,11 +401,12 @@ class BookingsRepository {
         workDetails: workDetails,
       );
       _saveBookings();
-      syncBookingsToCloud();
+      await syncBookingsToCloud();
     }
   }
 
-  static void rateBooking(String id, double rating, String review) {
+  static Future<void> rateBooking(String id, double rating, String review) async {
+    await syncBookingsFromCloud();
     final idx = _bookings.indexWhere((b) => b.id == id);
     if (idx != -1) {
       _bookings[idx] = _bookings[idx].copyWith(
@@ -405,23 +414,29 @@ class BookingsRepository {
         review: review,
       );
       _saveBookings();
-      syncBookingsToCloud();
+      await syncBookingsToCloud();
     }
   }
 
-  static void addComplaint(Map<String, dynamic> complaint) {
+  static Future<void> addComplaint(Map<String, dynamic> complaint) async {
+    await syncComplaintsFromCloud();
+    final compId = complaint['id']?.toString() ?? '';
+    if (compId.isNotEmpty) {
+      _complaints.removeWhere((c) => c['id']?.toString() == compId);
+    }
     _complaints.insert(0, complaint);
     _saveComplaints();
-    syncComplaintsToCloud();
+    await syncComplaintsToCloud();
   }
 
-  static void updateComplaintStatus(String id, String status, String notes) {
+  static Future<void> updateComplaintStatus(String id, String status, String notes) async {
+    await syncComplaintsFromCloud();
     final idx = _complaints.indexWhere((c) => c['id']?.toString() == id);
     if (idx != -1) {
       _complaints[idx]['status'] = status;
       _complaints[idx]['resolutionNotes'] = notes;
       _saveComplaints();
-      syncComplaintsToCloud();
+      await syncComplaintsToCloud();
     }
   }
 

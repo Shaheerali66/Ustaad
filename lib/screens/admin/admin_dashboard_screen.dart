@@ -20,6 +20,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _searchQuery = '';
   bool _isSyncing = false;
   bool _isConnected = true;
+  DateTime? _lastSyncTime;
   String _activeNav = 'Dashboard Overview';
   Timer? _pollTimer;
   List<Map<String, dynamic>> _newAlerts = [];
@@ -47,6 +48,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.dispose();
   }
 
+  String _formatLastSyncTime() {
+    if (_lastSyncTime == null) return 'Never';
+    final diff = DateTime.now().difference(_lastSyncTime!);
+    if (diff.inSeconds < 5) return 'Just now';
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${_lastSyncTime!.hour.toString().padLeft(2, '0')}:${_lastSyncTime!.minute.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _syncWithCloud() async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
@@ -57,6 +67,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       setState(() {
         _isSyncing = false;
         _isConnected = true;
+        _lastSyncTime = DateTime.now();
         if (result.newEntries.isNotEmpty) {
           _newAlerts.addAll(result.newEntries);
         }
@@ -78,6 +89,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (mounted) {
       setState(() {
         _isConnected = true;
+        _lastSyncTime = DateTime.now();
         if (result.newEntries.isNotEmpty) {
           _newAlerts.addAll(result.newEntries);
         }
@@ -98,10 +110,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _updateStatus(Map<String, dynamic> tech, String status) async {
     setState(() => tech['status'] = status);
     await DocumentDatabase.updateTechnician(tech['id'].toString(), {'status': status});
+    await _syncWithCloud();
     if (mounted) {
-      setState(() {
-        _isConnected = true;
-      });
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('${tech['name']} marked as $status!'),
@@ -248,41 +258,61 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ])
           : Text('Worker Management Dashboard', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
       actions: [
-        // Sync Indicator
-        InkWell(
-          onTap: _syncWithCloud,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _isConnected
-                    ? const PulsingDot(color: Colors.green)
-                    : Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.red,
+        // Sync Indicator and manual trigger
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _isConnected
+                      ? const PulsingDot(color: Colors.green)
+                      : Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.red,
+                          ),
+                        ),
+                  const SizedBox(width: 6),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isConnected ? 'Connected' : 'Sync Paused',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _isConnected ? Colors.green.shade700 : Colors.red.shade700,
                         ),
                       ),
-                const SizedBox(width: 6),
-                Text(
-                  _isConnected ? 'Connected' : 'Sync Paused',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _isConnected ? Colors.green.shade700 : Colors.red.shade700,
+                      Text(
+                        'Last Sync: ${_formatLastSyncTime()}',
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                if (_isSyncing) ...[
-                  const SizedBox(width: 6),
-                  const SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary)),
                 ],
-              ],
+              ),
             ),
-          ),
+            AnimatedRotation(
+              turns: _isSyncing ? 5.0 : 0.0,
+              duration: const Duration(seconds: 2),
+              child: IconButton(
+                icon: const Icon(Icons.sync, size: 20),
+                tooltip: 'Sync Now',
+                onPressed: _syncWithCloud,
+              ),
+            ),
+          ],
         ),
         // Notification Bell
         Stack(children: [

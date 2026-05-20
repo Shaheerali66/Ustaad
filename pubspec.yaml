@@ -13,6 +13,7 @@ dependencies:
   google_fonts: ^6.1.0
   go_router: ^14.0.0
   http: ^1.6.0
+  js: ^0.7.2
 
 dev_dependencies:
   flutter_test:

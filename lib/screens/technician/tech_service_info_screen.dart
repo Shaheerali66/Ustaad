@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/document_database.dart';
+import '../../widgets/google_places_autocomplete.dart';
 
 class TechServiceInfoScreen extends StatefulWidget {
   const TechServiceInfoScreen({super.key});
@@ -21,6 +22,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
   final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _areaController = TextEditingController();
   final TextEditingController _rateController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
 
   static const List<Map<String, dynamic>> _categories = [
     {'name': 'Plumber', 'icon': Icons.plumbing, 'desc': 'Pipes, taps, leaks, bathroom fitting'},
@@ -60,6 +62,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
     super.initState();
     _selectedCategory = DocumentDatabase.currentCategory;
     _selectedCity = DocumentDatabase.currentCity;
+    _cityController.text = _selectedCity ?? '';
     _experienceController.text = DocumentDatabase.currentExperience != null ? DocumentDatabase.currentExperience.toString() : '';
     _areaController.text = DocumentDatabase.currentArea ?? '';
     _rateController.text = DocumentDatabase.currentRate != null ? DocumentDatabase.currentRate.toString() : '';
@@ -70,6 +73,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
     _experienceController.dispose();
     _areaController.dispose();
     _rateController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -94,7 +98,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
     return trimVal.isNotEmpty && trimVal.length >= 3;
   }
 
-  bool _isCityValid() => _selectedCity != null && _selectedCity!.isNotEmpty;
+  bool _isCityValid() => _cityController.text.trim().isNotEmpty;
 
   bool _isFormValid() {
     return _isCategoryValid() &&
@@ -118,7 +122,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
       DocumentDatabase.currentCategory = _selectedCategory;
       DocumentDatabase.currentExperience = int.tryParse(_experienceController.text.trim()) ?? 3;
       DocumentDatabase.currentArea = _areaController.text.trim();
-      DocumentDatabase.currentCity = _selectedCity;
+      DocumentDatabase.currentCity = _cityController.text.trim();
       DocumentDatabase.currentRate = int.tryParse(_rateController.text.trim()) ?? 1000;
       context.go('/technician/documents');
     } else {
@@ -401,10 +405,10 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
             const SizedBox(height: 20),
             Text('Service Area (Neighborhood/Sectors) *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            TextFormField(
+            GooglePlacesAutocompleteField(
               controller: _areaController,
-              decoration: const InputDecoration(hintText: 'e.g. Sector G-11 or Model Town', prefixIcon: Icon(Icons.location_on_outlined, color: AppColors.onSurfaceVariant)),
-              onChanged: (_) => setState(() {}),
+              hintText: 'e.g. Sector G-11 or Model Town',
+              prefixIcon: Icons.location_on_outlined,
               validator: (value) {
                 final trimVal = value?.trim() ?? '';
                 if (trimVal.isEmpty || trimVal.length < 3) return 'Please enter your service area';
@@ -415,25 +419,13 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
             const SizedBox(height: 20),
             Text('City *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedCity,
-              hint: const Text('Select your city'),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.location_city, color: AppColors.onSurfaceVariant),
-              ),
-              items: _cities.map((city) {
-                return DropdownMenuItem<String>(
-                  value: city,
-                  child: Text(city, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
-                );
-              }).toList(),
-              onChanged: (val) {
-                setState(() {
-                  _selectedCity = val;
-                });
-              },
+            GooglePlacesAutocompleteField(
+              controller: _cityController,
+              hintText: 'e.g. Islamabad',
+              prefixIcon: Icons.location_city,
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Please select your city';
+                final trimVal = value?.trim() ?? '';
+                if (trimVal.isEmpty) return 'Please enter your city';
                 return null;
               },
             ),

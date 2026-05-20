@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
 import '../../data/document_database.dart';
+import '../../widgets/google_places_autocomplete.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -177,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _saveProfileChanges() {
+  Future<void> _saveProfileChanges() async {
     if (!_isEditsValid()) return;
 
     if (UserDatabase.isTechAuthenticated) {
@@ -189,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'area': _addressController.text.trim(),
         'city': _tempSelectedCity!,
       };
-      DocumentDatabase.updateTechnician(techId, updatedData);
+      await DocumentDatabase.updateTechnician(techId, updatedData);
       
       final updatedTech = Map<String, dynamic>.from(UserDatabase.currentTechnician!);
       updatedData.forEach((k, v) {
@@ -197,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       UserDatabase.techLogin(updatedTech);
     } else {
-      UserDatabase.updateProfile({
+      await UserDatabase.updateProfile({
         'fullName': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
@@ -206,9 +207,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
 
-    setState(() {
-      _isEditing = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isEditing = false;
+      });
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -643,16 +646,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 16),
 
                       _buildEditLabel('Complete Address'),
-                      TextFormField(
+                      GooglePlacesAutocompleteField(
                         controller: _addressController,
+                        hintText: 'Street address, House #, Neighborhood',
+                        prefixIcon: Icons.map_outlined,
                         maxLines: 2,
-                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
-                        decoration: _buildEditInputDecoration(
-                          hint: 'Complete Address',
-                          errorText: _addressTouched ? _validateAddress() : null,
-                        ),
-                        onChanged: (_) {
-                          setState(() => _addressTouched = true);
+                        minLines: 1,
+                        validator: (value) {
+                          final val = value ?? '';
+                          if (val.trim().isEmpty) return 'Address is required';
+                          return null;
                         },
                       ),
                       const SizedBox(height: 24),
