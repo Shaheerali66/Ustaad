@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ustaad">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>ustaad</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script>
+    window.gmapsLoaded = false;
+    window.gmapsDeferredInitializations = [];
+
+    window.getPlaceSuggestions = function(input, callback) {
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.getPlaceSuggestions(input, callback); }, 200);
+        return;
+      }
+      var service = new google.maps.places.AutocompleteService();
+      service.getPlacePredictions({
+        input: input,
+        componentRestrictions: { country: 'pk' }
+      }, function(predictions, status) {
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+          callback([]);
+          return;
+        }
+        var results = [];
+        for (var i = 0; i < predictions.length; i++) {
+          results.push({
+            description: predictions[i].description,
+            placeId: predictions[i].place_id
+          });
+        }
+        callback(results);
+      });
+    };
+
+    window.geocodeAddress = function(address, callback) {
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.geocodeAddress(address, callback); }, 200);
+        return;
+      }
+      var geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: address }, function(results, status) {
+        if (status === google.maps.GeocoderStatus.OK && results && results[0]) {
+          var loc = results[0].geometry.location;
+          callback({
+            lat: loc.lat(),
+            lng: loc.lng(),
+            formattedAddress: results[0].formatted_address
+          });
+        } else {
+          callback(null);
+        }
+      });
+    };
+
+    window.getDirectionsRoute = function(origin, destination, callback) {
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.getDirectionsRoute(origin, destination, callback); }, 200);
+        return;
+      }
+      var directionsService = new google.maps.DirectionsService();
+      directionsService.route({
+        origin: origin,
+        destination: destination,
+        travelMode: google.maps.TravelMode.DRIVING
+      }, function(result, status) {
+        if (status === google.maps.DirectionsStatus.OK) {
+          callback(result);
+        } else {
+          callback(null);
+        }
+      });
+    };
+
+    window.getDistanceMatrix = function(origin, destination, callback) {
+      if (!window.gmapsLoaded) {
+        setTimeout(function() { window.getDistanceMatrix(origin, destination, callback); }, 200);
+        return;
+      }
+      var service = new google.maps.DistanceMatrixService();
+      service.getDistanceMatrix({
+        origins: [origin],
+        destinations: [destination],
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.METRIC
+      }, function(response, status) {
+        if (status === google.maps.DistanceMatrixStatus.OK && response && response.rows[0] && response.rows[0].elements[0]) {
+          var element = response.rows[0].elements[0];
+          if (element.status === 'OK') {
+            callback({
+              distanceText: element.distance.text,
+              distanceValue: element.distance.value,
+              durationText: element.duration.text,
+              durationValue: element.duration.value
+            });
+            return;
+          }
+        }
+        callback(null);
+      });
+    };
+
+    window.mapsInstances = {};
+    window.mapsMarkers = {};
+    window.mapsDirectionsRenderers = {};
+
+    window.initializeGoogleMap = function(containerId, lat, lng, zoom, markers, route) {
+      if (!window.gmapsLoaded) {
+        window.gmapsDeferredInitializations.push({
+          containerId: containerId,
+          lat: lat,
+          lng: lng,
+          zoom: zoom,
+          markers: markers,
+          route: route
+        });
+        return;
+      }
+
+      var element = document.getElementById(containerId);
+      if (!element) {
+        setTimeout(function() {
+          var el2 = document.getElementById(containerId);
+          if (el2) window.initializeGoogleMap(containerId, lat, lng, zoom, markers, route);
+        }, 100);
+        return;
+      }
+
+      var map = window.mapsInstances[containerId];
+      if (map) {
+        // Smoothly update existing map center and zoom
+        map.setCenter({ lat: lat, lng: lng });
+        map.setZoom(zoom);
+        
+        // Remove old markers
+        if (window.mapsMarkers[containerId]) {
+          window.mapsMarkers[containerId].forEach(function(marker) {
+            marker.setMap(null);
+          });
+        }
+        window.mapsMarkers[containerId] = [];
+
+        // Remove old route
+        if (window.mapsDirectionsRenderers[containerId]) {
+          window.mapsDirectionsRenderers[containerId].setMap(null);
+          delete window.mapsDirectionsRenderers[containerId];
+        }
+      } else {
+        // Create a new map instance
+        var mapOptions = {
+          center: { lat: lat, lng: lng },
+          zoom: zoom,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          disableDefaultUI: false,
+        };
+        map = new google.maps.Map(element, mapOptions);
+        window.mapsInstances[containerId] = map;
+        window.mapsMarkers[containerId] = [];
+      }
+
+      // Add markers
+      if (markers && markers.length) {
+        markers.forEach(function(m) {
+          var markerOptions = {
+            position: { lat: m.lat, lng: m.lng },
+            map: map,
+            title: m.title || ""
+          };
+          if (m.icon) {
+            markerOptions.icon = m.icon;
+          } else if (m.color === 'blue') {
+            markerOptions.icon = "https://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+          } else if (m.color === 'red') {
+            markerOptions.icon = "https://maps.google.com/mapfiles/ms/icons/red-dot.png";
+          }
+          var marker = new google.maps.Marker(markerOptions);
+          window.mapsMarkers[containerId].push(marker);
+        });
+      }
+
+      // Add route if specified
+      if (route && route.origin && route.destination) {
+        var directionsService = new google.maps.DirectionsService();
+        var directionsRenderer = new google.maps.DirectionsRenderer({
+          map: map,
+          suppressMarkers: (markers && markers.length > 0) ? true : false
+        });
+        window.mapsDirectionsRenderers[containerId] = directionsRenderer;
+
+        var originVal = route.origin;
+        var destVal = route.destination;
+
+        // Ensure LatLngLiteral values are parsed as numbers if they are objects
+        if (typeof originVal === 'object' && originVal !== null) {
+          originVal = { lat: Number(originVal.lat), lng: Number(originVal.lng) };
+        }
+        if (typeof destVal === 'object' && destVal !== null) {
+          destVal = { lat: Number(destVal.lat), lng: Number(destVal.lng) };
+        }
+
+        directionsService.route({
+          origin: originVal,
+          destination: destVal,
+          travelMode: google.maps.TravelMode.DRIVING
+        }, function(response, status) {
+          if (status === google.maps.DirectionsStatus.OK) {
+            directionsRenderer.setDirections(response);
+          } else {
+            console.error("Directions request failed with status: " + status, {
+              origin: originVal,
+              destination: destVal
+            });
+          }
+        });
+      }
+    };
+
+    window.initMap = function() {
+      window.gmapsLoaded = true;
+      // Process any deferred initializations
+      while (window.gmapsDeferredInitializations.length > 0) {
+        var init = window.gmapsDeferredInitializations.shift();
+        window.initializeGoogleMap(init.containerId, init.lat, init.lng, init.zoom, init.markers, init.route);
+      }
+    };
+  </script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyBqJOkhXknOEHRNljCvxqZJBXaKaxyTtbg",
+      authDomain: "ustaad-3f94f.firebaseapp.com",
+      projectId: "ustaad-3f94f",
+      storageBucket: "ustaad-3f94f.firebasestorage.app",
+      messagingSenderId: "724767300046",
+      appId: "1:724767300046:web:66b0a33c67319ed6af339f",
+      measurementId: "G-6RB5XE7XBQ"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCfyfXA-jSL2Gwc9p3lML2V6z-AwKW0m0w&libraries=places&callback=initMap" async defer></script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
