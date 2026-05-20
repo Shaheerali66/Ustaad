@@ -337,11 +337,11 @@ class _SignupScreenState extends State<SignupScreen> {
       if (mounted) {
         final success = await UserDatabase.signup({
           'fullName': _nameController.text.trim(),
-          'email': _emailController.text.trim(),
+          'email': _emailController.text.trim().toLowerCase(),
           'phone': _phoneController.text.trim(),
           'address': _addressController.text.trim(),
           'city': _selectedCity!,
-          'password': _passwordController.text,
+          'password': _passwordController.text.trim(),
         });
 
         if (mounted) {

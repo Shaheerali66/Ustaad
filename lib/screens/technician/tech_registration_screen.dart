@@ -102,10 +102,10 @@ class _TechRegistrationScreenState extends State<TechRegistrationScreen> {
   void _handleContinue() {
     if (_isFormValid() && _formKey.currentState!.validate()) {
       DocumentDatabase.currentName = _nameController.text.trim();
-      DocumentDatabase.currentEmail = _emailController.text.trim();
+      DocumentDatabase.currentEmail = _emailController.text.trim().toLowerCase();
       DocumentDatabase.currentPhone = _phoneController.text.trim();
       DocumentDatabase.currentCnic = _cnicController.text.trim();
-      DocumentDatabase.currentPassword = _passwordController.text;
+      DocumentDatabase.currentPassword = _passwordController.text.trim();
       context.go('/technician/service-info');
     } else {
       ScaffoldMessenger.of(context).clearSnackBars();

@@ -80,11 +80,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (mounted) {
-        final email = _emailController.text.trim();
-        final password = _passwordController.text;
+        final email = _emailController.text.trim().toLowerCase();
+        final password = _passwordController.text.trim();
 
         final isWorker = DocumentDatabase.onboardedTechnicians.any(
-          (t) => t['email']?.toString().toLowerCase().trim() == email.toLowerCase(),
+          (t) => t['email']?.toString().toLowerCase().trim() == email,
         );
 
         if (isWorker) {
@@ -107,7 +107,16 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        final success = UserDatabase.login(email, password);
+        final bool success;
+        try {
+          success = UserDatabase.login(email, password);
+        } catch (error) {
+          setState(() {
+            _isSubmitting = false;
+            _loginError = 'Unable to complete login. Please try again.';
+          });
+          return;
+        }
 
         setState(() {
           _isSubmitting = false;

@@ -33,26 +33,99 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
       _isLoading = true;
     });
 
-    // Sync from cloud first to ensure we have the absolute latest technician statuses and applications
-    await DocumentDatabase.syncFromCloudWithInfo();
-    await UserDatabase.syncUsersFromCloud();
+    try {
+      // Sync from cloud first to ensure we have the absolute latest technician statuses and applications
+      await DocumentDatabase.syncFromCloudWithInfo();
+      await UserDatabase.syncUsersFromCloud();
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+      final email = _emailController.text.trim().toLowerCase();
+      final password = _passwordController.text.trim();
 
-    final isCustomer = UserDatabase.users.any(
-      (u) => u['email']?.toString().toLowerCase().trim() == email.toLowerCase(),
-    );
+      final isCustomer = UserDatabase.users.any(
+        (u) => u['email']?.toString().toLowerCase().trim() == email,
+      );
 
-    if (isCustomer) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (isCustomer) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'This email is registered as a customer account. Please login from the customer login screen.',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+
+      final techs = DocumentDatabase.onboardedTechnicians;
+      final hasTech = techs.any((t) => t['email']?.toString().toLowerCase().trim() == email);
+
+      if (!hasTech) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No account found with this email.',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+
+      final index = techs.indexWhere((t) =>
+          t['email']?.toString().toLowerCase().trim() == email &&
+          t['password']?.toString().trim() == password);
+
+      if (index == -1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Incorrect password. Please try again.',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+
+      final tech = techs[index];
+      final status = (tech['status']?.toString() ?? 'Pending Approval').trim().toLowerCase();
+
+      if (status == 'approved') {
+        UserDatabase.techLogin(tech);
+        if (mounted) {
+          context.go('/technician/home');
+        }
+      } else if (status == 'rejected') {
+        if (mounted) {
+          _showReviewDialog('Your application was rejected. Please contact support.', isRejected: true);
+        }
+      } else {
+        if (mounted) {
+          _showReviewDialog('Your account is under review. Please wait for admin approval.');
+        }
+      }
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'This email is registered as a customer account. Please login from the customer login screen.',
+              'Unable to complete login. Please try again.',
               style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
             backgroundColor: Colors.redAccent,
@@ -61,72 +134,11 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
           ),
         );
       }
-      return;
-    }
-
-    final techs = DocumentDatabase.onboardedTechnicians;
-    final hasTech = techs.any((t) => t['email']?.toString().toLowerCase().trim() == email.toLowerCase());
-
-    if (!hasTech) {
-      setState(() {
-        _isLoading = false;
-      });
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'No account found with this email.',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-      return;
-    }
-
-    final index = techs.indexWhere((t) =>
-        t['email']?.toString().toLowerCase().trim() == email.toLowerCase() &&
-        t['password']?.toString().trim() == password.trim());
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (index == -1) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Incorrect password. Please try again.',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-      return;
-    }
-
-    final tech = techs[index];
-    final status = (tech['status']?.toString() ?? 'Pending Approval').trim().toLowerCase();
-
-    if (status == 'approved') {
-      UserDatabase.techLogin(tech);
-      if (mounted) {
-        context.go('/technician/home');
-      }
-    } else if (status == 'rejected') {
-      if (mounted) {
-        _showReviewDialog('Your application was rejected. Please contact support.', isRejected: true);
-      }
-    } else {
-      if (mounted) {
-        _showReviewDialog('Your account is under review. Please wait for admin approval.');
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
