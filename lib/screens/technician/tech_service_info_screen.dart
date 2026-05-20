@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
@@ -13,6 +14,7 @@ class TechServiceInfoScreen extends StatefulWidget {
 
 class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
   String? _selectedCategory;
+  String? _selectedCity;
   String? _categoryError;
 
   final _formKey = GlobalKey<FormState>();
@@ -39,39 +41,28 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
     {'name': 'UPS / Solar Tech', 'icon': Icons.solar_power, 'desc': 'UPS, inverter, solar panel install'},
   ];
 
-  void _handleContinue() {
-    bool isCategoryValid = _selectedCategory != null;
+  static const List<String> _cities = [
+    'Islamabad',
+    'Lahore',
+    'Karachi',
+    'Rawalpindi',
+    'Peshawar',
+    'Multan',
+    'Faisalabad',
+    'Sialkot',
+    'Hyderabad',
+    'Quetta',
+    'Gujranwala'
+  ];
 
-    setState(() {
-      if (!isCategoryValid) {
-        _categoryError = 'Please search and select a service category';
-      } else {
-        _categoryError = null;
-      }
-    });
-
-    if (_formKey.currentState!.validate() && isCategoryValid) {
-      DocumentDatabase.currentCategory = _selectedCategory;
-      DocumentDatabase.currentExperience = int.tryParse(_experienceController.text.trim()) ?? 3;
-      DocumentDatabase.currentArea = _areaController.text.trim();
-      DocumentDatabase.currentRate = int.tryParse(_rateController.text.trim()) ?? 1000;
-      context.go('/technician/documents');
-    } else {
-      // Show failure message
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.white),
-            const SizedBox(width: 8),
-            Text('Please complete all service details first!', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-          ]),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-    }
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = DocumentDatabase.currentCategory;
+    _selectedCity = DocumentDatabase.currentCity;
+    _experienceController.text = DocumentDatabase.currentExperience != null ? DocumentDatabase.currentExperience.toString() : '';
+    _areaController.text = DocumentDatabase.currentArea ?? '';
+    _rateController.text = DocumentDatabase.currentRate != null ? DocumentDatabase.currentRate.toString() : '';
   }
 
   @override
@@ -82,8 +73,80 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
     super.dispose();
   }
 
+  bool _isCategoryValid() => _selectedCategory != null && _selectedCategory!.isNotEmpty;
+
+  bool _isExperienceValid(String val) {
+    final trimVal = val.trim();
+    if (trimVal.isEmpty) return false;
+    final exp = int.tryParse(trimVal);
+    return exp != null && exp >= 0 && exp <= 50;
+  }
+
+  bool _isRateValid(String val) {
+    final trimVal = val.trim();
+    if (trimVal.isEmpty) return false;
+    final rate = int.tryParse(trimVal);
+    return rate != null && rate > 0;
+  }
+
+  bool _isAreaValid(String val) {
+    final trimVal = val.trim();
+    return trimVal.isNotEmpty && trimVal.length >= 3;
+  }
+
+  bool _isCityValid() => _selectedCity != null && _selectedCity!.isNotEmpty;
+
+  bool _isFormValid() {
+    return _isCategoryValid() &&
+        _isExperienceValid(_experienceController.text) &&
+        _isRateValid(_rateController.text) &&
+        _isAreaValid(_areaController.text) &&
+        _isCityValid();
+  }
+
+  void _handleContinue() {
+    final bool isCatValid = _isCategoryValid();
+    setState(() {
+      if (!isCatValid) {
+        _categoryError = 'Please select your service category';
+      } else {
+        _categoryError = null;
+      }
+    });
+
+    if (_formKey.currentState!.validate() && isCatValid && _isCityValid()) {
+      DocumentDatabase.currentCategory = _selectedCategory;
+      DocumentDatabase.currentExperience = int.tryParse(_experienceController.text.trim()) ?? 3;
+      DocumentDatabase.currentArea = _areaController.text.trim();
+      DocumentDatabase.currentCity = _selectedCity;
+      DocumentDatabase.currentRate = int.tryParse(_rateController.text.trim()) ?? 1000;
+      context.go('/technician/documents');
+    } else {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Please fill in all required fields correctly before proceeding',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ]),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool formValid = _isFormValid();
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
@@ -94,6 +157,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // Step indicator
             Row(children: [
@@ -128,7 +192,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
             const SizedBox(height: 24),
 
             // Service Category with Autocomplete
-            Text('Service Category', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text('Service Category *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Autocomplete<Map<String, dynamic>>(
               optionsBuilder: (TextEditingValue textEditingValue) {
@@ -150,6 +214,10 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
                 });
               },
               fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+                // Pre-fill controller if we already have selected category
+                if (_selectedCategory != null && textController.text.isEmpty) {
+                  textController.text = _selectedCategory!;
+                }
                 return TextFormField(
                   controller: textController,
                   focusNode: focusNode,
@@ -171,6 +239,13 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
                           ),
                     suffixIcon: const Icon(Icons.expand_more, color: AppColors.onSurfaceVariant),
                   ),
+                  onChanged: (val) {
+                    if (val.isEmpty) {
+                      setState(() {
+                        _selectedCategory = null;
+                      });
+                    }
+                  },
                   onFieldSubmitted: (_) => onFieldSubmitted(),
                 );
               },
@@ -266,7 +341,7 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
                 child: Row(
                   children: [
                     Icon(
-                      _categories.firstWhere((c) => c['name'] == _selectedCategory)['icon'] as IconData,
+                      _categories.firstWhere((c) => c['name'] == _selectedCategory, orElse: () => _categories.first)['icon'] as IconData,
                       size: 20, color: AppColors.primary,
                     ),
                     const SizedBox(width: 8),
@@ -286,49 +361,92 @@ class _TechServiceInfoScreenState extends State<TechServiceInfoScreen> {
             ],
 
             const SizedBox(height: 20),
-            Text('Years of Experience', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text('Years of Experience *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _experienceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(hintText: 'e.g. 5', suffixIcon: const Icon(Icons.work_history_outlined, color: AppColors.onSurfaceVariant)),
+              onChanged: (_) => setState(() {}),
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter your years of experience';
-                }
+                final trimVal = value?.trim() ?? '';
+                if (trimVal.isEmpty) return 'Please enter valid years of experience';
+                final exp = int.tryParse(trimVal);
+                if (exp == null || exp < 0 || exp > 50) return 'Please enter valid years of experience';
                 return null;
               },
             ),
+
             const SizedBox(height: 20),
-            Text('Service Area', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _areaController,
-              decoration: InputDecoration(hintText: 'Search city or neighborhood', prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.onSurfaceVariant)),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter your service area';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            Text('Expected Hourly Rate', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text('Expected Hourly Rate (Rs.) *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _rateController,
-              decoration: InputDecoration(hintText: '1000', prefixText: 'Rs.  '),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(hintText: '1000', prefixText: 'Rs.  '),
+              onChanged: (_) => setState(() {}),
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter your expected rate';
-                }
+                final trimVal = value?.trim() ?? '';
+                if (trimVal.isEmpty) return 'Please enter your hourly rate in Rs.';
+                final rate = int.tryParse(trimVal);
+                if (rate == null || rate <= 0) return 'Please enter your hourly rate in Rs.';
                 return null;
               },
             ),
             const SizedBox(height: 8),
             Row(children: [const Icon(Icons.info_outline, size: 14, color: AppColors.tertiaryFixedDim), const SizedBox(width: 4), Expanded(child: Text('This is a baseline. You can adjust your final quote per booking.', style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant)))]),
+
+            const SizedBox(height: 20),
+            Text('Service Area (Neighborhood/Sectors) *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _areaController,
+              decoration: const InputDecoration(hintText: 'e.g. Sector G-11 or Model Town', prefixIcon: Icon(Icons.location_on_outlined, color: AppColors.onSurfaceVariant)),
+              onChanged: (_) => setState(() {}),
+              validator: (value) {
+                final trimVal = value?.trim() ?? '';
+                if (trimVal.isEmpty || trimVal.length < 3) return 'Please enter your service area';
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 20),
+            Text('City *', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedCity,
+              hint: const Text('Select your city'),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.location_city, color: AppColors.onSurfaceVariant),
+              ),
+              items: _cities.map((city) {
+                return DropdownMenuItem<String>(
+                  value: city,
+                  child: Text(city, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+                );
+              }).toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedCity = val;
+                });
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Please select your city';
+                return null;
+              },
+            ),
+
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _handleContinue,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: formValid ? AppColors.primary : AppColors.surfaceContainerHigh,
+                foregroundColor: formValid ? Colors.white : AppColors.onSurfaceVariant,
+                elevation: formValid ? 2 : 0,
+                shadowColor: formValid ? null : Colors.transparent,
+              ),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Continue to Verification', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)), const SizedBox(width: 8), const Icon(Icons.arrow_forward, size: 20)]),
             ),
             const SizedBox(height: 16),

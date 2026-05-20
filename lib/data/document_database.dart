@@ -7,10 +7,13 @@ class DocumentDatabase {
   static String? currentName;
   static String? currentCnic;
   static String? currentPhone;
+  static String? currentEmail;
+  static String? currentPassword;
 
   static String? currentCategory;
   static int? currentExperience;
   static String? currentArea;
+  static String? currentCity;
   static int? currentRate;
 
   static String? cnicFront;
@@ -307,12 +310,14 @@ class DocumentDatabase {
     final newTech = {
       'id': newId,
       'name': currentName ?? 'New Technician',
+      'email': currentEmail ?? 'N/A',
+      'password': currentPassword ?? 'N/A',
       'cnic': currentCnic ?? 'N/A',
       'phone': currentPhone ?? 'N/A',
       'category': currentCategory ?? 'General Trades',
       'experience': currentExperience ?? 3,
       'area': currentArea ?? 'Sector G-11',
-      'city': 'Islamabad',
+      'city': currentCity ?? 'Islamabad',
       'hourlyRate': currentRate ?? 1000,
       'status': 'Pending Approval',
       'adminNotes': '',
@@ -339,11 +344,14 @@ class DocumentDatabase {
 
     // Clear temporary wizard variables
     currentName = null;
+    currentEmail = null;
+    currentPassword = null;
     currentCnic = null;
     currentPhone = null;
     currentCategory = null;
     currentExperience = null;
     currentArea = null;
+    currentCity = null;
     currentRate = null;
     cnicFront = null;
     cnicFrontName = null;

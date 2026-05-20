@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
@@ -128,10 +129,8 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _validatePhone() {
     final val = _phoneController.text.trim();
     if (val.isEmpty) return 'Phone number is required';
-    // Pakistani format: 03XX-XXXXXXX or 03XXXXXXXXX
-    final phoneRegExp = RegExp(r'^03\d{2}-?\d{7}$');
-    if (!phoneRegExp.hasMatch(val)) {
-      return 'Phone number must be in 03XX-XXXXXXX format';
+    if (val.length != 11 || !val.startsWith('03')) {
+      return 'Phone number must be exactly 11 digits starting with 03';
     }
     return null;
   }
@@ -438,28 +437,20 @@ class _SignupScreenState extends State<SignupScreen> {
                   controller: _phoneController,
                   focusNode: _phoneFocusNode,
                   keyboardType: TextInputType.phone,
+                  maxLength: 11,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
                   decoration: _buildInputDecoration(
-                    hint: '03XX-XXXXXXX',
+                    hint: 'e.g. 03001234567',
                     icon: null,
                     errorText: _phoneTouched ? _validatePhone() : null,
                   ).copyWith(
                     prefixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(width: 12),
-                        const Text('🇵🇰', style: TextStyle(fontSize: 20)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '+92',
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.onSurface,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(width: 1, height: 20, color: AppColors.outlineVariant),
+                        const SizedBox(width: 16),
+                        const Text('🇵🇰', style: TextStyle(fontSize: 22)),
                         const SizedBox(width: 12),
                       ],
                     ),

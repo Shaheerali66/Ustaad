@@ -6,6 +6,63 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/document_database.dart';
 
+class DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double gap;
+  final double dashLength;
+  final double borderRadius;
+
+  DashedBorderPainter({
+    this.color = Colors.grey,
+    this.strokeWidth = 1.5,
+    this.gap = 4.0,
+    this.dashLength = 6.0,
+    this.borderRadius = 16.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Radius.circular(borderRadius),
+      ));
+
+    final dashedPath = Path();
+    for (final pathMetric in path.computeMetrics()) {
+      double distance = 0.0;
+      bool draw = true;
+      while (distance < pathMetric.length) {
+        final len = draw ? dashLength : gap;
+        if (draw) {
+          dashedPath.addPath(
+            pathMetric.extractPath(distance, distance + len),
+            Offset.zero,
+          );
+        }
+        distance += len;
+        draw = !draw;
+      }
+    }
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.gap != gap ||
+        oldDelegate.dashLength != dashLength ||
+        oldDelegate.borderRadius != borderRadius;
+  }
+}
+
 class TechDocumentsScreen extends StatefulWidget {
   const TechDocumentsScreen({super.key});
 
@@ -15,6 +72,9 @@ class TechDocumentsScreen extends StatefulWidget {
 
 class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
   bool _isSubmitting = false;
+  bool _agreedToTerms = false;
+  bool _showErrors = false;
+
   String? cnicFrontFile;
   String? cnicFrontName;
   int? cnicFrontSize;
@@ -103,6 +163,32 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
     anchor.remove();
   }
 
+  void _onSubmitTap() {
+    final List<String> missing = [];
+    if (profilePhotoFile == null) missing.add('Profile Photo');
+    if (cnicFrontFile == null) missing.add('CNIC Front Photo');
+    if (cnicBackFile == null) missing.add('CNIC Back Photo');
+    if (!_agreedToTerms) missing.add('Terms of Service Agreement');
+
+    if (missing.isNotEmpty) {
+      setState(() {
+        _showErrors = true;
+      });
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please complete the following before submitting: ${missing.join(", ")}'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
+    _submitApplication();
+  }
+
   void _submitApplication() async {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
@@ -156,34 +242,105 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
   }
 
+  void _showTermsDialog(String title) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        content: SingleChildScrollView(
+          child: Text(
+            'By submitting this application, you verify that all details provided are complete, accurate, and correct. You agree to cooperate with local service policies and standard background inspection checks required for technician validation.',
+            style: GoogleFonts.inter(fontSize: 14, height: 1.5),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.primary)),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool step3Complete = profilePhotoFile != null && cnicFrontFile != null && cnicBackFile != null && _agreedToTerms;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
         title: Text('Document Verification', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.dns),
+            onPressed: () => _showDatabaseDialog(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Progress
-          Row(children: List.generate(3, (i) => Expanded(child: Container(margin: EdgeInsets.only(right: i < 2 ? 4 : 0), height: 4, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)))))),
+          Row(children: [
+            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(width: 4),
+            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(width: 4),
+            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: step3Complete ? AppColors.primary : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(2)))),
+          ]),
           const SizedBox(height: 8),
           Center(child: Text('Step 3 of 3', style: GoogleFonts.inter(fontSize: 14, color: AppColors.primary, fontWeight: FontWeight.w600))),
           const SizedBox(height: 16),
           Text('Upload clear photos of your documents to complete your profile. This helps us ensure a secure environment.', style: GoogleFonts.inter(fontSize: 16, color: AppColors.onSurface)),
           const SizedBox(height: 24),
-          
+
+          // Profile Photo
+          _buildUploadField(
+            title: 'Profile Photo',
+            label: 'Take Face Photo',
+            fileData: profilePhotoFile,
+            fileName: profilePhotoName,
+            fileSize: profilePhotoSize,
+            errorMsg: 'Profile photo is required. Please upload a clear face photo to proceed.',
+            isMandatory: true,
+            icon: Icons.camera_alt_outlined,
+            onTap: () {
+              _pickFile(
+                accept: 'image/*',
+                capture: true,
+                onPicked: (base64, name, size) {
+                  setState(() {
+                    profilePhotoFile = base64;
+                    profilePhotoName = name;
+                    profilePhotoSize = size;
+                  });
+                },
+              );
+            },
+            onClear: () {
+              setState(() {
+                profilePhotoFile = null;
+                profilePhotoName = null;
+                profilePhotoSize = null;
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+
           // CNIC Front
-          _buildDocCard(
+          _buildUploadField(
             title: 'CNIC Front Side',
-            sub: 'Clear photo, all text visible',
+            label: 'Upload CNIC Front',
             fileData: cnicFrontFile,
             fileName: cnicFrontName,
             fileSize: cnicFrontSize,
-            icon: Icons.badge,
+            errorMsg: 'CNIC front photo is required. Please upload to proceed.',
+            isMandatory: true,
+            icon: Icons.add_photo_alternate_outlined,
             onTap: () {
               _pickFile(
                 accept: 'image/jpeg, image/jpg, image/png',
@@ -204,16 +361,18 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
               });
             },
           ),
-          const SizedBox(height: 16),
-          
+          const SizedBox(height: 20),
+
           // CNIC Back
-          _buildDocCard(
+          _buildUploadField(
             title: 'CNIC Back Side',
-            sub: 'Clear photo, signature visible',
+            label: 'Upload CNIC Back',
             fileData: cnicBackFile,
             fileName: cnicBackName,
             fileSize: cnicBackSize,
-            icon: Icons.badge,
+            errorMsg: 'CNIC back photo is required. Please upload to proceed.',
+            isMandatory: true,
+            icon: Icons.add_photo_alternate_outlined,
             onTap: () {
               _pickFile(
                 accept: 'image/jpeg, image/jpg, image/png',
@@ -234,195 +393,94 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
               });
             },
           ),
-          const SizedBox(height: 16),
-          
-          // Profile Photo (Camera Capture)
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surfaceContainerLowest, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceVariant)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Expanded(child: Text('Profile Photo', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600))), const Icon(Icons.tag_faces, color: AppColors.onSurfaceVariant)]),
-              Text('Clear face shot, solid background', style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant)),
-              const SizedBox(height: 12),
-              Row(children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.surfaceContainerLow,
-                  backgroundImage: profilePhotoFile != null
-                      ? MemoryImage(base64Decode(profilePhotoFile!.split(',').last))
-                      : null,
-                  child: profilePhotoFile == null
-                      ? const Icon(Icons.person_outline, size: 28, color: AppColors.onSurfaceVariant)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (profilePhotoFile != null) ...[
-                        Text(
-                          profilePhotoName ?? 'profile_photo.jpg',
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          _formatSize(profilePhotoSize),
-                          style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
-                        ),
-                      ] else ...[
-                        Text(
-                          'No photo taken',
-                          style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (profilePhotoFile != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () {
-                      setState(() {
-                        profilePhotoFile = null;
-                        profilePhotoName = null;
-                        profilePhotoSize = null;
-                      });
-                    },
-                  ),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _pickFile(
-                      accept: 'image/*',
-                      capture: true,
-                      onPicked: (base64, name, size) {
-                        setState(() {
-                          profilePhotoFile = base64;
-                          profilePhotoName = name;
-                          profilePhotoSize = size;
-                        });
-                      },
-                    );
-                  },
-                  icon: const Icon(Icons.camera_alt, size: 16),
-                  label: Text(profilePhotoFile == null ? 'Take Photo' : 'Retake', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primary),
-                    minimumSize: const Size(0, 36),
-                  ),
-                ),
-              ]),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          
-          // Certification (Optional PDF/JPEG)
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surfaceContainerLowest, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceVariant)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Row(children: [Text('Professional Certification', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)), const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(9999)), child: Text('OPTIONAL', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant)))])),
-                const Icon(Icons.workspace_premium, color: AppColors.onSurfaceVariant),
-              ]),
-              Text('Boosts your profile ranking', style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant)),
-              const SizedBox(height: 12),
-              
-              if (certFile != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.surfaceVariant),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        certName?.toLowerCase().endsWith('.pdf') == true
-                            ? Icons.picture_as_pdf
-                            : Icons.insert_drive_file,
-                        color: certName?.toLowerCase().endsWith('.pdf') == true
-                            ? Colors.red.shade700
-                            : AppColors.primary,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              certName ?? 'document.pdf',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              _formatSize(certSize),
-                              style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () {
-                          setState(() {
-                            certFile = null;
-                            certName = null;
-                            certSize = null;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                GestureDetector(
-                  onTap: () {
-                    _pickFile(
-                      accept: 'application/pdf, image/jpeg, image/jpg, image/png',
-                      onPicked: (base64, name, size) {
-                        setState(() {
-                          certFile = base64;
-                          certName = name;
-                          certSize = size;
-                        });
-                      },
-                    );
-                  },
-                  child: Container(
-                    width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 20),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.outlineVariant, style: BorderStyle.solid),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      const Icon(Icons.upload_file, color: AppColors.onSurfaceVariant),
-                      const SizedBox(width: 8),
-                      Text('Upload Document (PDF/JPG)', style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-                ),
-              ],
-            ]),
+          const SizedBox(height: 20),
+
+          // Professional Certification (Optional)
+          _buildUploadField(
+            title: 'Professional Certification',
+            label: 'Upload Document (PDF/JPG)',
+            fileData: certFile,
+            fileName: certName,
+            fileSize: certSize,
+            errorMsg: '',
+            isMandatory: false,
+            icon: Icons.upload_file_outlined,
+            onTap: () {
+              _pickFile(
+                accept: 'application/pdf, image/jpeg, image/jpg, image/png',
+                onPicked: (base64, name, size) {
+                  setState(() {
+                    certFile = base64;
+                    certName = name;
+                    certSize = size;
+                  });
+                },
+              );
+            },
+            onClear: () {
+              setState(() {
+                certFile = null;
+                certName = null;
+                certSize = null;
+              });
+            },
           ),
           const SizedBox(height: 24),
-          
+
+          // Terms and Conditions checkbox
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _agreedToTerms,
+                activeColor: AppColors.primary,
+                onChanged: (val) {
+                  setState(() {
+                    _agreedToTerms = val ?? false;
+                  });
+                },
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Wrap(
+                    children: [
+                      Text('I agree to the ', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface)),
+                      GestureDetector(
+                        onTap: () => _showTermsDialog('Terms of Service'),
+                        child: Text('Terms of Service', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                      ),
+                      Text(' and verify the accuracy of all submitted info.', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurface)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_showErrors && !_agreedToTerms) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 48),
+              child: Text(
+                'You must agree to the Terms of Service to proceed.',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error),
+              ),
+            ),
+          ],
+          const SizedBox(height: 32),
+
           // Submit Application
           SizedBox(
             width: double.infinity,
+            height: 56,
             child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitApplication,
+              onPressed: _isSubmitting ? null : _onSubmitTap,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: step3Complete ? AppColors.primary : AppColors.surfaceContainerHigh,
+                foregroundColor: step3Complete ? Colors.white : AppColors.onSurfaceVariant,
+                elevation: step3Complete ? 2 : 0,
+                shadowColor: step3Complete ? null : Colors.transparent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
               ),
               child: _isSubmitting
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -437,54 +495,104 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
     );
   }
 
-  Widget _buildDocCard({
+  Widget _buildUploadField({
     required String title,
-    required String sub,
+    required String label,
     required String? fileData,
     required String? fileName,
     required int? fileSize,
+    required String errorMsg,
+    required bool isMandatory,
     required IconData icon,
     required VoidCallback onTap,
     required VoidCallback onClear,
   }) {
-    final bool uploaded = fileData != null;
-    return Container(
-      width: double.infinity, padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: AppColors.surfaceContainerLowest, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceVariant)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Expanded(child: Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600))), Icon(icon, color: AppColors.onSurfaceVariant)]),
-        Text(sub, style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant)),
-        const SizedBox(height: 12),
-        if (uploaded)
+    final bool hasData = fileData != null;
+    final bool showError = _showErrors && isMandatory && !hasData;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(title, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+            if (isMandatory)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: AppColors.errorContainer.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                child: Text('REQUIRED', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.error)),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4)),
+                child: Text('OPTIONAL', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.onSurfaceVariant)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (hasData)
+          // Uploaded state
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.surfaceContainerLow, borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.shade400, width: 1.5),
+            ),
             child: Row(
               children: [
-                // Render image thumbnail
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Image.memory(
-                      base64Decode(fileData!.split(',').last),
-                      fit: BoxFit.cover,
+                // Thumbnail with green checkmark badge overlay
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: (fileName?.toLowerCase().endsWith('.jpg') == true ||
+                                fileName?.toLowerCase().endsWith('.jpeg') == true ||
+                                fileName?.toLowerCase().endsWith('.png') == true ||
+                                fileData.startsWith('data:image/'))
+                            ? Image.memory(
+                                base64Decode(fileData.split(',').last),
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                color: AppColors.surfaceContainerLow,
+                                child: const Icon(Icons.picture_as_pdf, color: Colors.red, size: 28),
+                              ),
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      right: -6,
+                      top: -6,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check, color: Colors.white, size: 12),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        fileName ?? 'upload.jpg',
+                        fileName ?? 'Uploaded File',
                         style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         _formatSize(fileSize),
                         style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
@@ -492,23 +600,75 @@ class _TechDocumentsScreenState extends State<TechDocumentsScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.refresh, size: 16, color: AppColors.primary),
+                  label: Text('Change', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                   onPressed: onClear,
                 ),
               ],
             ),
           )
         else
+          // Empty or Error state
           GestureDetector(
             onTap: onTap,
-            child: Container(
-              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 24),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.primary, style: BorderStyle.solid)),
-              child: Column(children: [const Icon(Icons.add_photo_alternate, color: AppColors.primary), const SizedBox(height: 4), Text('Tap to Upload', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary))]),
+            child: CustomPaint(
+              painter: DashedBorderPainter(
+                color: showError ? AppColors.error : AppColors.outlineVariant,
+                strokeWidth: 1.5,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                decoration: BoxDecoration(
+                  color: showError ? AppColors.errorContainer.withOpacity(0.05) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      showError ? Icons.warning_amber_rounded : icon,
+                      color: showError ? AppColors.error : AppColors.onSurfaceVariant,
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: showError ? AppColors.error : AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      showError ? 'Validation failed' : 'Max size 5MB (JPG, PNG)',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: showError ? AppColors.error : AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-      ]),
+        if (showError) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              errorMsg,
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
