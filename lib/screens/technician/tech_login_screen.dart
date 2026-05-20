@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/user_database.dart';
 import '../../data/document_database.dart';
 
@@ -39,6 +38,7 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
       final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text.trim();
 
+      // Step 1: Firebase Authentication
       final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -46,37 +46,67 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
 
       final user = userCredential.user;
       if (user != null) {
-        // Verify this is a worker account
-        final doc = await FirebaseFirestore.instance.collection('workers').doc(user.uid).get();
-        if (doc.exists && doc.data()?['role'] == 'worker') {
-          final tech = doc.data()!;
-          tech['id'] = user.uid; // Add document ID into the map for local sync
-          final status = (tech['status']?.toString() ?? 'Pending Approval').trim().toLowerCase();
+        // Step 2: Fetch latest worker record from DocumentDatabase (JSON bin cloud)
+        // Workers are stored in DocumentDatabase, NOT in Firestore.
+        await DocumentDatabase.syncFromCloud();
+        final workers = DocumentDatabase.onboardedTechnicians;
+        final techIndex = workers.indexWhere(
+          (t) => t['email']?.toString().toLowerCase().trim() == email,
+        );
+
+        if (techIndex != -1) {
+          final tech = Map<String, dynamic>.from(workers[techIndex]);
+
+          // Read status and normalize to lowercase for reliable comparison
+          final rawStatus = tech['status']?.toString().trim() ?? '';
+          final status = rawStatus.toLowerCase();
+
+          // Debug log
+          debugPrint('[WorkerLogin] Email: $email | Raw status from DB: "$rawStatus" | Normalized: "$status"');
 
           if (status == 'approved') {
-            UserDatabase.techLogin(tech); // Keep local sync
+            // ✅ Approved — allow login
+            tech['id'] = tech['id'] ?? user.uid;
+            UserDatabase.techLogin(tech);
             if (mounted) {
               context.go('/technician/home');
             }
           } else if (status == 'rejected') {
+            // ❌ Rejected
             await FirebaseAuth.instance.signOut();
             if (mounted) {
-              _showReviewDialog('Your application was rejected. Please contact support.', isRejected: true);
+              _showReviewDialog(
+                'Your application was rejected. Please contact support.',
+                isRejected: true,
+              );
+            }
+          } else if (status == 'pending approval' || status == 'pending') {
+            // ⏳ Pending
+            await FirebaseAuth.instance.signOut();
+            if (mounted) {
+              _showReviewDialog('Your account is under review. Please wait for admin approval.');
+            }
+          } else if (rawStatus.isEmpty) {
+            // ❓ No status field
+            await FirebaseAuth.instance.signOut();
+            if (mounted) {
+              _showReviewDialog('Your account status could not be verified. Please contact support.');
             }
           } else {
+            // Any other status (e.g. Resubmission Requested)
             await FirebaseAuth.instance.signOut();
             if (mounted) {
               _showReviewDialog('Your account is under review. Please wait for admin approval.');
             }
           }
         } else {
-          // Not a worker
+          // Worker not found in DocumentDatabase — check if they're a customer
           await FirebaseAuth.instance.signOut();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'This email is registered as a customer account. Please login from the customer login screen.',
+                  'No worker account found with this email. Please register first or use the customer login.',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w500),
                 ),
                 backgroundColor: Colors.redAccent,
