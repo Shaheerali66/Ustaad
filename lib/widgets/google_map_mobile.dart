@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../theme/app_colors.dart';
 
 class GoogleMapWidget extends StatefulWidget {
@@ -26,6 +29,164 @@ class GoogleMapWidget extends StatefulWidget {
 }
 
 class _GoogleMapWidgetState extends State<GoogleMapWidget> {
+  GoogleMapController? _mapController;
+  List<LatLng> _routePoints = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRoutePoints();
+  }
+
+  @override
+  void didUpdateWidget(covariant GoogleMapWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.centerLat != widget.centerLat ||
+        oldWidget.centerLng != widget.centerLng ||
+        oldWidget.zoom != widget.zoom) {
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(widget.centerLat, widget.centerLng),
+          widget.zoom,
+        ),
+      );
+    }
+    if (oldWidget.route != widget.route) {
+      _fetchRoutePoints();
+    }
+  }
+
+  Future<void> _fetchRoutePoints() async {
+    final route = widget.route;
+    if (route == null || route['origin'] == null || route['destination'] == null) {
+      if (mounted) {
+        setState(() {
+          _routePoints = [];
+        });
+      }
+      return;
+    }
+
+    try {
+      final origin = route['origin'];
+      final destination = route['destination'];
+      final double originLat = (origin['lat'] as num).toDouble();
+      final double originLng = (origin['lng'] as num).toDouble();
+      final double destLat = (destination['lat'] as num).toDouble();
+      final double destLng = (destination['lng'] as num).toDouble();
+
+      final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/directions/json'
+        '?origin=$originLat,$originLng'
+        '&destination=$destLat,$destLng'
+        '&key=AIzaSyCfyfXA-jSL2Gwc9p3lML2V6z-AwKW0m0w'
+      );
+
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK' &&
+            data['routes'] != null &&
+            (data['routes'] as List).isNotEmpty) {
+          final pointsStr = data['routes'][0]['overview_polyline']['points'] as String;
+          final decoded = _decodePolyline(pointsStr);
+          if (mounted) {
+            setState(() {
+              _routePoints = decoded;
+            });
+          }
+        } else {
+          debugPrint('Directions API status error: ${data['status']}');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching route points on mobile: $e');
+    }
+  }
+
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return points;
+  }
+
+  Set<Marker> _buildMarkers() {
+    final Set<Marker> markers = {};
+    for (var i = 0; i < widget.markers.length; i++) {
+      final m = widget.markers[i];
+      final double lat = (m['lat'] as num).toDouble();
+      final double lng = (m['lng'] as num).toDouble();
+      final String title = m['title']?.toString() ?? 'Location';
+      final String color = m['color']?.toString() ?? '';
+
+      double hue = BitmapDescriptor.hueRed;
+      if (color == 'blue') {
+        hue = BitmapDescriptor.hueBlue;
+      }
+
+      markers.add(
+        Marker(
+          markerId: MarkerId('marker_$i'),
+          position: LatLng(lat, lng),
+          infoWindow: InfoWindow(title: title),
+          icon: BitmapDescriptor.defaultMarkerWithHue(hue),
+        ),
+      );
+    }
+
+    // Fallback if no markers: add a default center marker
+    if (markers.isEmpty) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('center_marker'),
+          position: LatLng(widget.centerLat, widget.centerLng),
+          infoWindow: const InfoWindow(title: 'Selected Location'),
+          icon: BitmapDescriptor.defaultMarker,
+        ),
+      );
+    }
+    return markers;
+  }
+
+  Set<Polyline> _buildPolylines() {
+    if (_routePoints.isEmpty) return {};
+    return {
+      Polyline(
+        polylineId: const PolylineId('route_polyline'),
+        points: _routePoints,
+        color: const Color(0xFF4285F4), // Google Blue
+        width: 6,
+        jointType: JointType.round,
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+      ),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final double displayHeight = widget.height < 300 ? 300 : widget.height;
@@ -43,13 +204,21 @@ class _GoogleMapWidgetState extends State<GoogleMapWidget> {
         borderRadius: radius,
         child: Stack(
           children: [
-            // Custom painter to draw grid and mock path
+            // Real GoogleMap Widget
             Positioned.fill(
-              child: CustomPaint(
-                painter: _MockMapPainter(
-                  markersCount: widget.markers.length,
-                  hasRoute: widget.route != null,
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: LatLng(widget.centerLat, widget.centerLng),
+                  zoom: widget.zoom,
                 ),
+                onMapCreated: (GoogleMapController controller) {
+                  _mapController = controller;
+                },
+                markers: _buildMarkers(),
+                polylines: _buildPolylines(),
+                zoomControlsEnabled: false,
+                myLocationButtonEnabled: false,
+                mapToolbarEnabled: false,
               ),
             ),
             // Mock Search Bar Overlay
@@ -149,11 +318,17 @@ class _GoogleMapWidgetState extends State<GoogleMapWidget> {
               top: 70,
               child: Column(
                 children: [
-                  _circleButton(Icons.explore, Colors.white, Colors.black87),
+                  _circleButton(Icons.explore, Colors.white, Colors.black87, () {
+                    // Reset compass
+                  }),
                   const SizedBox(height: 8),
-                  _circleButton(Icons.add, Colors.white, Colors.black87),
+                  _circleButton(Icons.add, Colors.white, Colors.black87, () {
+                    _mapController?.animateCamera(CameraUpdate.zoomIn());
+                  }),
                   const SizedBox(height: 4),
-                  _circleButton(Icons.remove, Colors.white, Colors.black87),
+                  _circleButton(Icons.remove, Colors.white, Colors.black87, () {
+                    _mapController?.animateCamera(CameraUpdate.zoomOut());
+                  }),
                 ],
               ),
             ),
@@ -163,166 +338,25 @@ class _GoogleMapWidgetState extends State<GoogleMapWidget> {
     );
   }
 
-  Widget _circleButton(IconData icon, Color bg, Color fg) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: bg,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Icon(icon, color: fg, size: 18),
-    );
-  }
-}
-
-class _MockMapPainter extends CustomPainter {
-  final int markersCount;
-  final bool hasRoute;
-
-  _MockMapPainter({required this.markersCount, required this.hasRoute});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
-      ..strokeWidth = 1.0;
-
-    // Draw grid lines
-    const double gridSize = 40.0;
-    for (double x = 0; x < size.width; x += gridSize) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += gridSize) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Draw mock major road green-ish outline
-    final roadPaint = Paint()
-      ..color = const Color(0xFFFCFDF9)
-      ..strokeWidth = 16.0
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final roadBorderPaint = Paint()
-      ..color = const Color(0xFFD4E3D5)
-      ..strokeWidth = 18.0
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..moveTo(20, size.height * 0.7)
-      ..quadraticBezierTo(
-        size.width * 0.4,
-        size.height * 0.85,
-        size.width * 0.6,
-        size.height * 0.4,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.8,
-        size.height * 0.1,
-        size.width - 20,
-        size.height * 0.3,
-      );
-
-    canvas.drawPath(path, roadBorderPaint);
-    canvas.drawPath(path, roadPaint);
-
-    // Draw another intersecting road
-    final path2 = Path()
-      ..moveTo(size.width * 0.3, 0)
-      ..quadraticBezierTo(
-        size.width * 0.4,
-        size.height * 0.5,
-        size.width * 0.2,
-        size.height,
-      );
-
-    canvas.drawPath(path2, roadBorderPaint);
-    canvas.drawPath(path2, roadPaint);
-
-    // Draw route if active
-    if (hasRoute) {
-      final routePaint = Paint()
-        ..color = const Color(0xFF4285F4) // Google Blue
-        ..strokeWidth = 6.0
-        ..strokeCap = StrokeCap.round
-        ..style = PaintingStyle.stroke;
-
-      final routePath = Path()
-        ..moveTo(size.width * 0.3, size.height * 0.6)
-        ..quadraticBezierTo(
-          size.width * 0.5,
-          size.height * 0.45,
-          size.width * 0.7,
-          size.height * 0.4,
-        );
-
-      canvas.drawPath(routePath, routePaint);
-
-      // Draw dashed inner line to make it look even cooler
-      final dashPaint = Paint()
-        ..color = Colors.white
-        ..strokeWidth = 2.0
-        ..strokeCap = StrokeCap.round
-        ..style = PaintingStyle.stroke;
-
-      // Draw worker pin (Blue)
-      _drawPin(canvas, Offset(size.width * 0.3, size.height * 0.6), Colors.blue, "Worker");
-
-      // Draw customer pin (Red)
-      _drawPin(canvas, Offset(size.width * 0.7, size.height * 0.4), Colors.red, "Customer");
-    } else {
-      // Just draw center pin
-      _drawPin(canvas, Offset(size.width / 2, size.height / 2), AppColors.primary, "Location");
-    }
-  }
-
-  void _drawPin(Canvas canvas, Offset position, Color color, String label) {
-    final shadowPaint = Paint()..color = Colors.black.withOpacity(0.2);
-    canvas.drawCircle(Offset(position.dx, position.dy + 2), 6, shadowPaint);
-
-    final pinPaint = Paint()..color = color;
-    canvas.drawCircle(position, 6, pinPaint);
-
-    final innerPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(position, 2.5, innerPaint);
-
-    // Pin stem
-    final stemPath = Path()
-      ..moveTo(position.dx - 3, position.dy + 2)
-      ..lineTo(position.dx, position.dy + 10)
-      ..lineTo(position.dx + 3, position.dy + 2)
-      ..close();
-    canvas.drawPath(stemPath, pinPaint);
-
-    // Label
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          backgroundColor: Colors.white.withOpacity(0.8),
+  Widget _circleButton(IconData icon, Color bg, Color fg, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: bg,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 3,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
+        child: Icon(icon, color: fg, size: 18),
       ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(position.dx - textPainter.width / 2, position.dy - 18),
     );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

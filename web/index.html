@@ -224,13 +224,29 @@
         });
         window.mapsDirectionsRenderers[containerId] = directionsRenderer;
 
+        var originVal = route.origin;
+        var destVal = route.destination;
+
+        // Ensure LatLngLiteral values are parsed as numbers if they are objects
+        if (typeof originVal === 'object' && originVal !== null) {
+          originVal = { lat: Number(originVal.lat), lng: Number(originVal.lng) };
+        }
+        if (typeof destVal === 'object' && destVal !== null) {
+          destVal = { lat: Number(destVal.lat), lng: Number(destVal.lng) };
+        }
+
         directionsService.route({
-          origin: route.origin,
-          destination: route.destination,
+          origin: originVal,
+          destination: destVal,
           travelMode: google.maps.TravelMode.DRIVING
         }, function(response, status) {
           if (status === google.maps.DirectionsStatus.OK) {
             directionsRenderer.setDirections(response);
+          } else {
+            console.error("Directions request failed with status: " + status, {
+              origin: originVal,
+              destination: destVal
+            });
           }
         });
       }

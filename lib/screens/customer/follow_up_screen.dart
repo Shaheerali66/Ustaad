@@ -17,6 +17,8 @@ class FollowUpScreen extends StatefulWidget {
 class _FollowUpScreenState extends State<FollowUpScreen> {
   double _centerLat = 30.3753; // Pakistan center
   double _centerLng = 69.3451;
+  double _workerLat = 33.6844; // Default worker location
+  double _workerLng = 73.0479;
   double _zoom = 5.0; // Country zoom
   String _providerOrigin = 'Center, Islamabad';
   String _customerDestination = 'House 12, Street 4, Sector G-13, Islamabad';
@@ -25,6 +27,23 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
   void initState() {
     super.initState();
     _initTrackingRoute();
+  }
+
+  List<Map<String, dynamic>> get _markers {
+    return [
+      {
+        'lat': _workerLat,
+        'lng': _workerLng,
+        'title': 'Ali Raza (Technician)',
+        'color': 'blue',
+      },
+      {
+        'lat': _centerLat,
+        'lng': _centerLng,
+        'title': 'Your Location',
+        'color': 'red',
+      }
+    ];
   }
 
   void _initTrackingRoute() async {
@@ -85,6 +104,8 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
     }
 
     setState(() {
+      _workerLat = fallbackLat;
+      _workerLng = fallbackLng;
       _centerLat = initLat;
       _centerLng = initLng;
       _zoom = initZoom;
@@ -318,9 +339,16 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                   centerLat: _centerLat,
                   centerLng: _centerLng,
                   zoom: _zoom,
+                  markers: _markers,
                   route: {
-                    'origin': _providerOrigin,
-                    'destination': _customerDestination,
+                    'origin': {
+                      'lat': _workerLat,
+                      'lng': _workerLng,
+                    },
+                    'destination': {
+                      'lat': _centerLat,
+                      'lng': _centerLng,
+                    },
                   },
                   height: 300,
                 ),

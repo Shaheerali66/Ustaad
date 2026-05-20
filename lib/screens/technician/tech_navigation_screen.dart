@@ -118,37 +118,53 @@ class _TechNavigationScreenState extends State<TechNavigationScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _markers {
-    // Get worker coordinates based on city fallback
+  double get _workerLat {
     double workerLat = 31.5204;
-    double workerLng = 74.3587;
     final lowerAddress = _customerDestination.toLowerCase();
     if (lowerAddress.contains('islamabad')) {
       workerLat = 33.6844;
-      workerLng = 73.0479;
     } else if (lowerAddress.contains('karachi')) {
       workerLat = 24.8607;
-      workerLng = 67.0011;
     } else if (lowerAddress.contains('rawalpindi')) {
       workerLat = 33.5984;
-      workerLng = 73.0441;
     } else if (lowerAddress.contains('hyderabad')) {
       workerLat = 25.3960;
-      workerLng = 68.3578;
     } else if (lowerAddress.contains('peshawar')) {
       workerLat = 34.0151;
-      workerLng = 71.5249;
     } else if (lowerAddress.contains('multan')) {
       workerLat = 30.1575;
-      workerLng = 71.5249;
     } else if (lowerAddress.contains('faisalabad')) {
       workerLat = 31.4504;
+    }
+    return workerLat;
+  }
+
+  double get _workerLng {
+    double workerLng = 74.3587;
+    final lowerAddress = _customerDestination.toLowerCase();
+    if (lowerAddress.contains('islamabad')) {
+      workerLng = 73.0479;
+    } else if (lowerAddress.contains('karachi')) {
+      workerLng = 67.0011;
+    } else if (lowerAddress.contains('rawalpindi')) {
+      workerLng = 73.0441;
+    } else if (lowerAddress.contains('hyderabad')) {
+      workerLng = 68.3578;
+    } else if (lowerAddress.contains('peshawar')) {
+      workerLng = 71.5249;
+    } else if (lowerAddress.contains('multan')) {
+      workerLng = 71.5249;
+    } else if (lowerAddress.contains('faisalabad')) {
       workerLng = 73.1350;
     }
+    return workerLng;
+  }
+
+  List<Map<String, dynamic>> get _markers {
     return [
       {
-        'lat': workerLat,
-        'lng': workerLng,
+        'lat': _workerLat,
+        'lng': _workerLng,
         'title': 'Your Location',
         'color': 'blue',
       },
@@ -175,8 +191,14 @@ class _TechNavigationScreenState extends State<TechNavigationScreen> {
               zoom: _zoom,
               markers: _markers,
               route: {
-                'origin': _providerOrigin,
-                'destination': _customerDestination,
+                'origin': {
+                  'lat': _workerLat,
+                  'lng': _workerLng,
+                },
+                'destination': {
+                  'lat': _centerLat,
+                  'lng': _centerLng,
+                },
               },
               height: MediaQuery.of(context).size.height < 400 ? 400 : MediaQuery.of(context).size.height,
             ),
