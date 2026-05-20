@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 class UserDatabase {
   static List<Map<String, dynamic>> _users = [];
+  static List<Map<String, dynamic>> get users => _users;
   static Map<String, dynamic>? _currentUser;
   static bool _isFirstLoginAfterSignup = false;
 
@@ -83,6 +84,7 @@ class UserDatabase {
                 'address': 'House 12, Street 4, Sector G-13',
                 'city': 'Islamabad',
                 'password': 'Password123',
+                'role': 'customer',
               }
             ];
             _saveUsers();
@@ -114,6 +116,7 @@ class UserDatabase {
             'address': 'House 12, Street 4, Sector G-13',
             'city': 'Islamabad',
             'password': 'Password123',
+            'role': 'customer',
           }
         ];
         _saveUsers();
@@ -146,6 +149,7 @@ class UserDatabase {
           'address': 'House 12, Street 4, Sector G-13',
           'city': 'Islamabad',
           'password': 'Password123',
+          'role': 'customer',
         }
       ];
     }
@@ -224,13 +228,20 @@ class UserDatabase {
 
   static Future<bool> signup(Map<String, dynamic> userData) async {
     await syncUsersFromCloud();
+    await DocumentDatabase.syncFromCloud();
     final email = userData['email']?.toString().toLowerCase().trim() ?? '';
-    final index = _users.indexWhere((u) => u['email']?.toString().toLowerCase().trim() == email);
-    if (index != -1) {
+    
+    // Check customers
+    final hasCustomer = _users.any((u) => u['email']?.toString().toLowerCase().trim() == email);
+    // Check workers
+    final hasWorker = DocumentDatabase.onboardedTechnicians.any((t) => t['email']?.toString().toLowerCase().trim() == email);
+    
+    if (hasCustomer || hasWorker) {
       return false; // Email already exists
     }
 
     final newUserData = Map<String, dynamic>.from(userData);
+    newUserData['role'] = 'customer';
     _users.add(newUserData);
     _saveUsers();
     await syncUsersToCloud();

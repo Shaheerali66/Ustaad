@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
+import '../../data/document_database.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -81,6 +82,18 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         final email = _emailController.text.trim();
         final password = _passwordController.text;
+
+        final isWorker = DocumentDatabase.onboardedTechnicians.any(
+          (t) => t['email']?.toString().toLowerCase().trim() == email.toLowerCase(),
+        );
+
+        if (isWorker) {
+          setState(() {
+            _isSubmitting = false;
+            _loginError = 'This email is registered as a worker account. Please login from the worker login screen.';
+          });
+          return;
+        }
 
         final success = UserDatabase.login(email, password);
 

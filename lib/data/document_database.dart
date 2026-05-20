@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:http/http.dart' as http;
+import 'user_database.dart';
 
 class DocumentDatabase {
   // Wizard temporary fields
@@ -165,6 +166,7 @@ class DocumentDatabase {
         'profilePhotoName': 'ali_avatar.jpg',
         'certificationName': 'hvac_cert.pdf',
         'adminNotes': '',
+        'role': 'worker',
       },
       {
         'id': '102',
@@ -182,6 +184,7 @@ class DocumentDatabase {
         'profilePhotoName': 'bilal.png',
         'certificationName': 'plumbing_diploma.pdf',
         'adminNotes': '',
+        'role': 'worker',
       }
     ];
   }
@@ -313,6 +316,16 @@ class DocumentDatabase {
       list = List<Map<String, dynamic>>.from(onboardedTechnicians);
     }
 
+    final email = currentEmail?.toLowerCase().trim() ?? '';
+    if (email.isNotEmpty) {
+      await UserDatabase.syncUsersFromCloud();
+      final hasCustomer = UserDatabase.users.any((u) => u['email']?.toString().toLowerCase().trim() == email);
+      final hasWorker = list.any((t) => t['email']?.toString().toLowerCase().trim() == email);
+      if (hasCustomer || hasWorker) {
+        return false; // Email already registered!
+      }
+    }
+
     // Generate a unique ID based on max ID in the list
     int maxId = 100;
     for (var tech in list) {
@@ -337,6 +350,7 @@ class DocumentDatabase {
       'hourlyRate': currentRate ?? 1000,
       'status': 'Pending Approval',
       'adminNotes': '',
+      'role': 'worker',
       // Dynamic base64 documents & metadata
       'cnicFront': cnicFront,
       'cnicFrontName': cnicFrontName,

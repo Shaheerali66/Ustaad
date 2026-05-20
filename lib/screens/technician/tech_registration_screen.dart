@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/document_database.dart';
+import '../../data/user_database.dart';
 
 class TechRegistrationScreen extends StatefulWidget {
   const TechRegistrationScreen({super.key});
@@ -27,6 +28,8 @@ class _TechRegistrationScreenState extends State<TechRegistrationScreen> {
   @override
   void initState() {
     super.initState();
+    UserDatabase.syncUsersFromCloud();
+    DocumentDatabase.syncFromCloudWithInfo();
     // Load pre-existing if any
     _nameController.text = DocumentDatabase.currentName ?? '';
     _emailController.text = DocumentDatabase.currentEmail ?? '';
@@ -54,9 +57,14 @@ class _TechRegistrationScreenState extends State<TechRegistrationScreen> {
   }
 
   bool _isEmailValid(String val) {
-    final trimVal = val.trim();
+    final trimVal = val.trim().toLowerCase();
     if (trimVal.isEmpty) return false;
-    return RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$").hasMatch(trimVal);
+    if (!RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$").hasMatch(trimVal)) return false;
+    
+    // Check uniqueness
+    final existsAsCustomer = UserDatabase.users.any((u) => u['email']?.toString().toLowerCase().trim() == trimVal);
+    final existsAsWorker = DocumentDatabase.onboardedTechnicians.any((t) => t['email']?.toString().toLowerCase().trim() == trimVal);
+    return !(existsAsCustomer || existsAsWorker);
   }
 
   bool _isPhoneValid(String val) {
@@ -197,6 +205,12 @@ class _TechRegistrationScreenState extends State<TechRegistrationScreen> {
                             if (!RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$").hasMatch(val.trim())) {
                               return 'Please enter a valid email address';
                             }
+                            final trimVal = val.trim().toLowerCase();
+                            final existsAsCustomer = UserDatabase.users.any((u) => u['email']?.toString().toLowerCase().trim() == trimVal);
+                            final existsAsWorker = DocumentDatabase.onboardedTechnicians.any((t) => t['email']?.toString().toLowerCase().trim() == trimVal);
+                            if (existsAsCustomer || existsAsWorker) {
+                              return 'This email is already registered. Please login or use a different email.';
+                            }
                             return null;
                           },
                         ),
@@ -316,7 +330,7 @@ class _TechRegistrationScreenState extends State<TechRegistrationScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: ElevatedButton(
-                        onPressed: _handleContinue,
+                        onPressed: formValid ? _handleContinue : null,
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(140, 52),
                           backgroundColor: formValid ? AppColors.primary : AppColors.surfaceContainerHigh,

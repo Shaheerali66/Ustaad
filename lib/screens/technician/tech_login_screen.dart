@@ -35,9 +35,34 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
 
     // Sync from cloud first to ensure we have the absolute latest technician statuses and applications
     await DocumentDatabase.syncFromCloudWithInfo();
+    await UserDatabase.syncUsersFromCloud();
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+
+    final isCustomer = UserDatabase.users.any(
+      (u) => u['email']?.toString().toLowerCase().trim() == email.toLowerCase(),
+    );
+
+    if (isCustomer) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'This email is registered as a customer account. Please login from the customer login screen.',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
 
     final techs = DocumentDatabase.onboardedTechnicians;
     final index = techs.indexWhere((t) =>

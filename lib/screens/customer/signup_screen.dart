@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/user_database.dart';
+import '../../data/document_database.dart';
 import '../../widgets/google_places_autocomplete.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -61,6 +62,8 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void initState() {
     super.initState();
+    UserDatabase.syncUsersFromCloud();
+    DocumentDatabase.syncFromCloudWithInfo();
     // Add focus listeners
     _nameFocusNode.addListener(() {
       if (!_nameFocusNode.hasFocus) {
@@ -120,11 +123,26 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   String? _validateEmail() {
-    final val = _emailController.text.trim();
+    final val = _emailController.text.trim().toLowerCase();
     if (val.isEmpty) return 'Email Address is required';
     final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegExp.hasMatch(val)) return 'Please enter a valid email address';
+    
+    // Check if email already exists as customer or worker
+    final existsAsCustomer = UserDatabase.users.any((u) => u['email']?.toString().toLowerCase().trim() == val);
+    final existsAsWorker = DocumentDatabase.onboardedTechnicians.any((t) => t['email']?.toString().toLowerCase().trim() == val);
+    if (existsAsCustomer || existsAsWorker) {
+      return 'This email is already registered. Please login or use a different email.';
+    }
     return null;
+  }
+
+  String? _validateEmailInline() {
+    final err = _validateEmail();
+    if (err == 'This email is already registered. Please login or use a different email.') {
+      return err;
+    }
+    return _emailTouched ? err : null;
   }
 
   String? _validatePhone() {
@@ -351,7 +369,7 @@ class _SignupScreenState extends State<SignupScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Email already registered! Try logging in.',
+                'This email is already registered. Please login or use a different email.',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w600),
               ),
               backgroundColor: AppColors.error,
@@ -427,7 +445,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   decoration: _buildInputDecoration(
                     hint: 'name@example.com',
                     icon: Icons.email_outlined,
-                    errorText: _emailTouched ? _validateEmail() : null,
+                    errorText: _validateEmailInline(),
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
