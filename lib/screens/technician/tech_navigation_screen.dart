@@ -3,9 +3,163 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../data/booking_state.dart';
+import '../../data/bookings_repository.dart';
+import '../../utils/google_maps_service.dart';
+import '../../widgets/google_map_widget.dart';
 
-class TechNavigationScreen extends StatelessWidget {
+class TechNavigationScreen extends StatefulWidget {
   const TechNavigationScreen({super.key});
+
+  @override
+  State<TechNavigationScreen> createState() => _TechNavigationScreenState();
+}
+
+class _TechNavigationScreenState extends State<TechNavigationScreen> {
+  double _centerLat = 31.5204; // Lahore center fallback
+  double _centerLng = 74.3587;
+  double _zoom = 12.0;
+  String _providerOrigin = 'Gulberg III, Lahore';
+  String _customerDestination = 'House 42, Street 10, DHA Phase 5, Lahore';
+  String _customerName = 'Sara Ahmed';
+  String _jobTitle = 'Emergency Plumbing Repair';
+  String _distance = '2.5 km';
+  String _eta = '8 min';
+  String _traffic = 'Low';
+
+  @override
+  void initState() {
+    super.initState();
+    _initRoute();
+  }
+
+  void _initRoute() async {
+    final latest = BookingsRepository.bookings.isNotEmpty
+        ? BookingsRepository.bookings.firstWhere(
+            (b) => b.status.toLowerCase().contains('progress') || b.status.toLowerCase().contains('confirm'),
+            orElse: () => BookingsRepository.bookings.first,
+          )
+        : null;
+
+    final customerAddress = (latest != null && latest.location.isNotEmpty && !latest.location.toLowerCase().contains('select location'))
+        ? latest.location
+        : 'House 42, Street 10, DHA Phase 5, Lahore';
+
+    final customerName = (latest != null && latest.providerName.isNotEmpty)
+        ? latest.providerName
+        : 'Sara Ahmed';
+
+    final jobTitle = (latest != null && latest.title.isNotEmpty)
+        ? latest.title
+        : 'Emergency Plumbing Repair';
+
+    // Determine initial center based on city name in the address
+    final lowerAddress = customerAddress.toLowerCase();
+    double initLat = 31.5204; // Lahore
+    double initLng = 74.3587;
+    double initZoom = 12.0;
+    String origin = 'Gulberg, Lahore';
+
+    if (lowerAddress.contains('islamabad')) {
+      initLat = 33.6844;
+      initLng = 73.0479;
+      origin = 'Center, Islamabad';
+    } else if (lowerAddress.contains('karachi')) {
+      initLat = 24.8607;
+      initLng = 67.0011;
+      origin = 'Clifton, Karachi';
+    } else if (lowerAddress.contains('rawalpindi')) {
+      initLat = 33.5984;
+      initLng = 73.0441;
+      origin = 'Saddar, Rawalpindi';
+    } else if (lowerAddress.contains('hyderabad')) {
+      initLat = 25.3960;
+      initLng = 68.3578;
+      origin = 'Latifabad, Hyderabad';
+    } else if (lowerAddress.contains('peshawar')) {
+      initLat = 34.0151;
+      initLng = 71.5249;
+      origin = 'University Road, Peshawar';
+    } else if (lowerAddress.contains('multan')) {
+      initLat = 30.1575;
+      initLng = 71.5249;
+      origin = 'Boson Road, Multan';
+    } else if (lowerAddress.contains('faisalabad')) {
+      initLat = 31.4504;
+      initLng = 73.1350;
+      origin = 'People\'s Colony, Faisalabad';
+    }
+
+    setState(() {
+      _centerLat = initLat;
+      _centerLng = initLng;
+      _zoom = initZoom;
+      _providerOrigin = origin;
+      _customerDestination = customerAddress;
+      _customerName = customerName;
+      _jobTitle = jobTitle;
+    });
+
+    final result = await GoogleMapsService.geocodeAddress(customerAddress);
+    if (result != null && mounted) {
+      setState(() {
+        _centerLat = result['lat'] as double;
+        _centerLng = result['lng'] as double;
+        _zoom = 13.0;
+      });
+    }
+
+    final matrix = await GoogleMapsService.getDistanceMatrix(_providerOrigin, _customerDestination);
+    if (matrix != null && mounted) {
+      setState(() {
+        _distance = matrix['distanceText'] as String? ?? '2.5 km';
+        _eta = matrix['durationText'] as String? ?? '8 min';
+        _traffic = 'Low';
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _markers {
+    // Get worker coordinates based on city fallback
+    double workerLat = 31.5204;
+    double workerLng = 74.3587;
+    final lowerAddress = _customerDestination.toLowerCase();
+    if (lowerAddress.contains('islamabad')) {
+      workerLat = 33.6844;
+      workerLng = 73.0479;
+    } else if (lowerAddress.contains('karachi')) {
+      workerLat = 24.8607;
+      workerLng = 67.0011;
+    } else if (lowerAddress.contains('rawalpindi')) {
+      workerLat = 33.5984;
+      workerLng = 73.0441;
+    } else if (lowerAddress.contains('hyderabad')) {
+      workerLat = 25.3960;
+      workerLng = 68.3578;
+    } else if (lowerAddress.contains('peshawar')) {
+      workerLat = 34.0151;
+      workerLng = 71.5249;
+    } else if (lowerAddress.contains('multan')) {
+      workerLat = 30.1575;
+      workerLng = 71.5249;
+    } else if (lowerAddress.contains('faisalabad')) {
+      workerLat = 31.4504;
+      workerLng = 73.1350;
+    }
+    return [
+      {
+        'lat': workerLat,
+        'lng': workerLng,
+        'title': 'Your Location',
+        'color': 'blue',
+      },
+      {
+        'lat': _centerLat,
+        'lng': _centerLng,
+        'title': 'Customer Location',
+        'color': 'red',
+      }
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,14 +167,18 @@ class TechNavigationScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          // Full screen map placeholder
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: AppColors.surfaceContainerLow,
-            child: CustomPaint(
-              painter: _MapPainter(),
-              child: const SizedBox.expand(),
+          // Full screen real Google Map
+          Positioned.fill(
+            child: GoogleMapWidget(
+              centerLat: _centerLat,
+              centerLng: _centerLng,
+              zoom: _zoom,
+              markers: _markers,
+              route: {
+                'origin': _providerOrigin,
+                'destination': _customerDestination,
+              },
+              height: MediaQuery.of(context).size.height < 400 ? 400 : MediaQuery.of(context).size.height,
             ),
           ),
 
@@ -50,7 +208,12 @@ class TechNavigationScreen extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    _circleButton(Icons.my_location, () {}),
+                    _circleButton(Icons.my_location, () {
+                      // Center map back to current location
+                      setState(() {
+                        _zoom = 13.0;
+                      });
+                    }),
                   ],
                 ),
               ),
@@ -82,7 +245,7 @@ class TechNavigationScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Your Location', style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant)),
-                            Text('Gulberg III, Lahore', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text(_providerOrigin, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -114,7 +277,7 @@ class TechNavigationScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Customer Location', style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant)),
-                            Text('House 42, Street 10, DHA Phase 5', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text(_customerDestination, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -126,11 +289,11 @@ class TechNavigationScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _routeInfoChip(Icons.route, '2.5 km', 'Distance'),
+                      _routeInfoChip(Icons.route, _distance, 'Distance'),
                       Container(width: 1, height: 32, color: AppColors.surfaceVariant),
-                      _routeInfoChip(Icons.access_time, '8 min', 'ETA'),
+                      _routeInfoChip(Icons.access_time, _eta, 'ETA'),
                       Container(width: 1, height: 32, color: AppColors.surfaceVariant),
-                      _routeInfoChip(Icons.traffic, 'Low', 'Traffic'),
+                      _routeInfoChip(Icons.traffic, _traffic, 'Traffic'),
                     ],
                   ),
                 ],
@@ -163,17 +326,20 @@ class TechNavigationScreen extends StatelessWidget {
                       // Customer info
                       Row(
                         children: [
-                          const CircleAvatar(
+                          CircleAvatar(
                             radius: 24,
                             backgroundColor: AppColors.primaryContainer,
-                            child: Text('SA', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.onPrimaryContainer)),
+                            child: Text(
+                              _customerName.split(' ').map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').take(2).join(),
+                              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.onPrimaryContainer),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Sara Ahmed', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600)),
+                                Text(_customerName, style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600)),
                                 Row(
                                   children: [
                                     const Icon(Icons.star, size: 14, color: AppColors.tertiaryFixedDim),
@@ -209,11 +375,11 @@ class TechNavigationScreen extends StatelessWidget {
                               children: [
                                 const Icon(Icons.plumbing, size: 18, color: AppColors.primary),
                                 const SizedBox(width: 8),
-                                Text('Emergency Plumbing Repair', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                                Text(_jobTitle, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text('House 42, Street 10, DHA Phase 5', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant)),
+                            Text(_customerDestination, style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant)),
                           ],
                         ),
                       ),
@@ -321,11 +487,12 @@ class TechNavigationScreen extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => const _ChatSheet(),
+      builder: (ctx) => _ChatSheet(customerName: _customerName),
     );
   }
 
   void _showCallDialog(BuildContext context) {
+    final initials = _customerName.split(' ').map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').take(2).join();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -334,9 +501,9 @@ class TechNavigationScreen extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircleAvatar(radius: 36, backgroundColor: AppColors.primaryContainer, child: Text('SA', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.onPrimaryContainer))),
+            CircleAvatar(radius: 36, backgroundColor: AppColors.primaryContainer, child: Text(initials, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.onPrimaryContainer))),
             const SizedBox(height: 16),
-            Text('Sara Ahmed', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700)),
+            Text(_customerName, style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700)),
             Text('Customer', style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant)),
             const SizedBox(height: 24),
             Row(
@@ -374,7 +541,8 @@ class TechNavigationScreen extends StatelessWidget {
 }
 
 class _ChatSheet extends StatefulWidget {
-  const _ChatSheet();
+  final String customerName;
+  const _ChatSheet({required this.customerName});
 
   @override
   State<_ChatSheet> createState() => _ChatSheetState();
@@ -420,7 +588,7 @@ class _ChatSheetState extends State<_ChatSheet> {
       if (!mounted) return;
       setState(() {
         _messages.add({
-          'sender': 'Sara Ahmed',
+          'sender': widget.customerName,
           'message': _autoReplies[_replyIndex % _autoReplies.length],
           'isMe': false,
           'time': _currentTime(),
@@ -452,6 +620,7 @@ class _ChatSheetState extends State<_ChatSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final initials = widget.customerName.split(' ').map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').take(2).join();
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
@@ -466,10 +635,10 @@ class _ChatSheetState extends State<_ChatSheet> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const CircleAvatar(radius: 18, backgroundColor: AppColors.primaryContainer, child: Text('SA', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.onPrimaryContainer))),
+                CircleAvatar(radius: 18, backgroundColor: AppColors.primaryContainer, child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.onPrimaryContainer))),
                 const SizedBox(width: 12),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Sara Ahmed', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(widget.customerName, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
                   Row(children: [
                     Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.secondary)),
                     const SizedBox(width: 4),
@@ -562,56 +731,4 @@ class _ChatSheetState extends State<_ChatSheet> {
       ),
     );
   }
-}
-
-class _MapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Draw grid lines to simulate a map
-    final paint = Paint()
-      ..color = AppColors.surfaceVariant.withValues(alpha: 0.5)
-      ..strokeWidth = 0.5;
-
-    for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 40) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Draw a route line
-    final routePaint = Paint()
-      ..color = AppColors.primary
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path()
-      ..moveTo(size.width * 0.3, size.height * 0.65)
-      ..cubicTo(size.width * 0.35, size.height * 0.5, size.width * 0.45, size.height * 0.45, size.width * 0.5, size.height * 0.4)
-      ..cubicTo(size.width * 0.55, size.height * 0.35, size.width * 0.6, size.height * 0.35, size.width * 0.7, size.height * 0.3);
-
-    // Route shadow
-    canvas.drawPath(path, Paint()
-      ..color = AppColors.primary.withValues(alpha: 0.15)
-      ..strokeWidth = 12
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round);
-
-    canvas.drawPath(path, routePaint);
-
-    // Draw start pin (blue)
-    _drawPin(canvas, Offset(size.width * 0.3, size.height * 0.65), AppColors.primary);
-    // Draw end pin (red)
-    _drawPin(canvas, Offset(size.width * 0.7, size.height * 0.3), AppColors.error);
-  }
-
-  void _drawPin(Canvas canvas, Offset position, Color color) {
-    canvas.drawCircle(position, 16, Paint()..color = color.withValues(alpha: 0.2));
-    canvas.drawCircle(position, 10, Paint()..color = color);
-    canvas.drawCircle(position, 5, Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

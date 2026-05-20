@@ -198,11 +198,19 @@
       // Add markers
       if (markers && markers.length) {
         markers.forEach(function(m) {
-          var marker = new google.maps.Marker({
+          var markerOptions = {
             position: { lat: m.lat, lng: m.lng },
             map: map,
             title: m.title || ""
-          });
+          };
+          if (m.icon) {
+            markerOptions.icon = m.icon;
+          } else if (m.color === 'blue') {
+            markerOptions.icon = "https://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+          } else if (m.color === 'red') {
+            markerOptions.icon = "https://maps.google.com/mapfiles/ms/icons/red-dot.png";
+          }
+          var marker = new google.maps.Marker(markerOptions);
           window.mapsMarkers[containerId].push(marker);
         });
       }
@@ -212,7 +220,7 @@
         var directionsService = new google.maps.DirectionsService();
         var directionsRenderer = new google.maps.DirectionsRenderer({
           map: map,
-          suppressMarkers: false
+          suppressMarkers: (markers && markers.length > 0) ? true : false
         });
         window.mapsDirectionsRenderers[containerId] = directionsRenderer;
 
