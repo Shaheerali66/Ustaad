@@ -71,6 +71,7 @@ class UserDatabase {
         final List<dynamic> decoded = jsonDecode(response.body);
         if (decoded.isNotEmpty) {
           _users = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+          _ensureDemoCustomer();
           _saveUsers();
           return true;
         } else {
@@ -87,8 +88,9 @@ class UserDatabase {
                 'role': 'customer',
               }
             ];
-            _saveUsers();
           }
+          _ensureDemoCustomer();
+          _saveUsers();
           await syncUsersToCloud();
           return true;
         }
@@ -96,6 +98,34 @@ class UserDatabase {
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  static void _ensureDemoCustomer() {
+    final demoEmail = 'admin123@gmail.com';
+    final index = _users.indexWhere((u) => u['email']?.toString().toLowerCase().trim() == demoEmail);
+    final demoAccount = {
+      'fullName': 'Demo Customer',
+      'email': demoEmail,
+      'phone': '03001234567',
+      'address': 'House 1, Street 1, F-7',
+      'city': 'Islamabad',
+      'password': 'Admin12345',
+      'role': 'customer',
+    };
+    if (index == -1) {
+      _users.add(demoAccount);
+      _saveUsers();
+    } else {
+      final existing = _users[index];
+      if (existing['fullName'] != 'Demo Customer' ||
+          existing['password'] != 'Admin12345' ||
+          existing['phone'] != '03001234567' ||
+          existing['address'] != 'House 1, Street 1, F-7' ||
+          existing['city'] != 'Islamabad') {
+        _users[index] = demoAccount;
+        _saveUsers();
+      }
     }
   }
 
@@ -153,7 +183,9 @@ class UserDatabase {
         }
       ];
     }
+    _ensureDemoCustomer();
     syncUsersFromCloud();
+    syncUsersToCloud();
   }
 
   static bool get isAuthenticated => _currentUser != null;
@@ -211,8 +243,10 @@ class UserDatabase {
 
   static bool login(String email, String password) {
     init(); // Ensure loaded
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanPassword = password.trim();
     final index = _users.indexWhere(
-      (u) => u['email']?.toString().toLowerCase().trim() == email.trim().toLowerCase() && u['password']?.toString() == password
+      (u) => u['email']?.toString().toLowerCase().trim() == cleanEmail && u['password']?.toString().trim() == cleanPassword
     );
     if (index != -1) {
       _currentUser = Map<String, dynamic>.from(_users[index]);
@@ -241,6 +275,8 @@ class UserDatabase {
     }
 
     final newUserData = Map<String, dynamic>.from(userData);
+    newUserData['email'] = email;
+    newUserData['password'] = newUserData['password']?.toString().trim();
     newUserData['role'] = 'customer';
     _users.add(newUserData);
     _saveUsers();
@@ -273,7 +309,13 @@ class UserDatabase {
 
     // Update local currentUser
     updatedData.forEach((key, value) {
-      _currentUser![key] = value;
+      if (key == 'email') {
+        _currentUser![key] = value?.toString().toLowerCase().trim();
+      } else if (key == 'password') {
+        _currentUser![key] = value?.toString().trim();
+      } else {
+        _currentUser![key] = value;
+      }
     });
     _saveCurrentUser();
 
@@ -282,7 +324,13 @@ class UserDatabase {
     final index = _users.indexWhere((u) => u['email']?.toString().toLowerCase().trim() == email);
     if (index != -1) {
       updatedData.forEach((key, value) {
-        _users[index][key] = value;
+        if (key == 'email') {
+          _users[index][key] = value?.toString().toLowerCase().trim();
+        } else if (key == 'password') {
+          _users[index][key] = value?.toString().trim();
+        } else {
+          _users[index][key] = value;
+        }
       });
       _saveUsers();
       await syncUsersToCloud();
@@ -290,29 +338,31 @@ class UserDatabase {
   }
 
   static bool verifyCurrentPassword(String password) {
+    final cleanPassword = password.trim();
     if (isTechAuthenticated) {
-      return _currentTechnician!['password']?.toString() == password;
+      return _currentTechnician!['password']?.toString().trim() == cleanPassword;
     }
     if (_currentUser == null) return false;
-    return _currentUser!['password']?.toString() == password;
+    return _currentUser!['password']?.toString().trim() == cleanPassword;
   }
 
   static void updatePassword(String newPassword) async {
+    final cleanPassword = newPassword.trim();
     if (isTechAuthenticated) {
-      _currentTechnician!['password'] = newPassword;
+      _currentTechnician!['password'] = cleanPassword;
       _saveCurrentTechnician();
       final techId = _currentTechnician!['id']?.toString() ?? '';
-      await DocumentDatabase.updateTechnician(techId, {'password': newPassword});
+      await DocumentDatabase.updateTechnician(techId, {'password': cleanPassword});
       return;
     }
     if (_currentUser == null) return;
-    _currentUser!['password'] = newPassword;
+    _currentUser!['password'] = cleanPassword;
     _saveCurrentUser();
 
     final email = _currentUser!['email']?.toString().toLowerCase().trim();
     final index = _users.indexWhere((u) => u['email']?.toString().toLowerCase().trim() == email);
     if (index != -1) {
-      _users[index]['password'] = newPassword;
+      _users[index]['password'] = cleanPassword;
       _saveUsers();
       syncUsersToCloud();
     }

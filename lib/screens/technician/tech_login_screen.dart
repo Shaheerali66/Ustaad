@@ -65,9 +65,31 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
     }
 
     final techs = DocumentDatabase.onboardedTechnicians;
+    final hasTech = techs.any((t) => t['email']?.toString().toLowerCase().trim() == email.toLowerCase());
+
+    if (!hasTech) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No account found with this email.',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
     final index = techs.indexWhere((t) =>
         t['email']?.toString().toLowerCase().trim() == email.toLowerCase() &&
-        t['password']?.toString() == password);
+        t['password']?.toString().trim() == password.trim());
 
     setState(() {
       _isLoading = false;
@@ -78,7 +100,7 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Invalid email or password.',
+              'Incorrect password. Please try again.',
               style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
             backgroundColor: Colors.redAccent,
@@ -91,22 +113,20 @@ class _TechLoginScreenState extends State<TechLoginScreen> {
     }
 
     final tech = techs[index];
-    final status = tech['status']?.toString() ?? 'Pending Approval';
+    final status = (tech['status']?.toString() ?? 'Pending Approval').trim().toLowerCase();
 
-    if (status == 'Approved') {
+    if (status == 'approved') {
       UserDatabase.techLogin(tech);
       if (mounted) {
         context.go('/technician/home');
       }
-    } else if (status == 'Pending Approval') {
+    } else if (status == 'rejected') {
       if (mounted) {
-        _showReviewDialog('Your account is currently under review. You will be notified once approved.');
+        _showReviewDialog('Your application was rejected. Please contact support.', isRejected: true);
       }
-    } else if (status == 'Rejected') {
-      final reason = tech['adminNotes']?.toString() ?? '';
-      final displayReason = reason.isNotEmpty ? reason : 'Does not meet requirement criteria.';
+    } else {
       if (mounted) {
-        _showReviewDialog('Your application was rejected.\n\nReason: $displayReason', isRejected: true);
+        _showReviewDialog('Your account is under review. Please wait for admin approval.');
       }
     }
   }

@@ -1,1 +1,1 @@
-export 'google_map_web.dart' if (dart.library.io) 'google_map_mobile.dart';
+export 'google_map_mobile.dart' if (dart.library.html) 'google_map_web.dart';

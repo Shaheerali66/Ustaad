@@ -95,6 +95,18 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
+        final hasCustomer = UserDatabase.users.any(
+          (u) => u['email']?.toString().toLowerCase().trim() == email.toLowerCase(),
+        );
+
+        if (!hasCustomer) {
+          setState(() {
+            _isSubmitting = false;
+            _loginError = 'No account found with this email.';
+          });
+          return;
+        }
+
         final success = UserDatabase.login(email, password);
 
         setState(() {
@@ -117,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
           context.go('/customer/home');
         } else {
           setState(() {
-            _loginError = 'Invalid email or password. Please try again.';
+            _loginError = 'Incorrect password. Please try again.';
           });
         }
       }

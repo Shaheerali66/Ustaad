@@ -8,7 +8,12 @@ class PlatformStorage {
 
   /// Must be called once before any read/write, typically in main().
   static Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    try {
+      _prefs = await SharedPreferences.getInstance();
+    } catch (e) {
+      // Fail-safe to avoid crash on launch
+      _prefs = null;
+    }
   }
 
   static String? getString(String key) {

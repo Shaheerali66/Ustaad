@@ -50,6 +50,8 @@ class DocumentDatabase {
     if (_cachedTechnicians == null) {
       _cachedTechnicians = [];
       _loadFromLocalStorage();
+      _ensureDemoWorker();
+      syncToCloud();
       _lastKnownCount = _cachedTechnicians!.length;
       _knownIds = _cachedTechnicians!.map((t) => t['id']?.toString() ?? '').toSet();
     }
@@ -96,6 +98,7 @@ class DocumentDatabase {
         targetList[index][key] = value;
       });
       _cachedTechnicians = targetList;
+      _ensureDemoWorker();
       persistChanges();
 
       if (cloudLoaded) {
@@ -115,6 +118,7 @@ class DocumentDatabase {
           localList[localIdx][key] = value;
         });
         _cachedTechnicians = localList;
+        _ensureDemoWorker();
         persistChanges();
         try {
           await http.put(
@@ -143,7 +147,46 @@ class DocumentDatabase {
     // Seed default values if completely empty
     if (_cachedTechnicians == null || _cachedTechnicians!.isEmpty) {
       _cachedTechnicians = _getDefaultSeeds();
-      persistChanges();
+    }
+    _ensureDemoWorker();
+    persistChanges();
+  }
+
+  static void _ensureDemoWorker() {
+    if (_cachedTechnicians == null) return;
+    final demoEmail = 'admin12345@gmail.com';
+    final index = _cachedTechnicians!.indexWhere((t) => t['email']?.toString().toLowerCase().trim() == demoEmail);
+    final demoAccount = {
+      'id': '100',
+      'name': 'Demo Worker',
+      'email': demoEmail,
+      'password': 'Admin0011',
+      'cnic': '35201-0000000-1',
+      'phone': '03000000000',
+      'category': 'AC Technician',
+      'experience': 5,
+      'area': 'F-7',
+      'city': 'Islamabad',
+      'hourlyRate': 1000,
+      'status': 'Approved',
+      'cnicFrontName': 'cnic_front.jpg',
+      'cnicBackName': 'cnic_back.jpg',
+      'profilePhotoName': 'profile.jpg',
+      'certificationName': 'cert.pdf',
+      'adminNotes': '',
+      'role': 'worker',
+    };
+    if (index == -1) {
+      _cachedTechnicians!.add(demoAccount);
+    } else {
+      final existing = _cachedTechnicians![index];
+      if (existing['name'] != 'Demo Worker' ||
+          existing['password'] != 'Admin0011' ||
+          existing['status'] != 'Approved' ||
+          existing['category'] != 'AC Technician' ||
+          existing['city'] != 'Islamabad') {
+        _cachedTechnicians![index] = demoAccount;
+      }
     }
   }
 
@@ -243,6 +286,7 @@ class DocumentDatabase {
           }
 
           _cachedTechnicians = cloudList;
+          _ensureDemoWorker();
           _cachedTechnicians!.sort((a, b) {
             final int idA = int.tryParse(a['id']?.toString() ?? '0') ?? 0;
             final int idB = int.tryParse(b['id']?.toString() ?? '0') ?? 0;
@@ -317,6 +361,7 @@ class DocumentDatabase {
     }
 
     final email = currentEmail?.toLowerCase().trim() ?? '';
+    final cleanPassword = currentPassword?.trim() ?? 'N/A';
     if (email.isNotEmpty) {
       await UserDatabase.syncUsersFromCloud();
       final hasCustomer = UserDatabase.users.any((u) => u['email']?.toString().toLowerCase().trim() == email);
@@ -339,8 +384,8 @@ class DocumentDatabase {
     final newTech = {
       'id': newId,
       'name': currentName ?? 'New Technician',
-      'email': currentEmail ?? 'N/A',
-      'password': currentPassword ?? 'N/A',
+      'email': email.isNotEmpty ? email : 'N/A',
+      'password': cleanPassword,
       'cnic': currentCnic ?? 'N/A',
       'phone': currentPhone ?? 'N/A',
       'category': currentCategory ?? 'General Trades',
