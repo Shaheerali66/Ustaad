@@ -260,9 +260,27 @@ class UserDatabase {
     return false;
   }
 
+  static Map<String, dynamic> _sanitizeUserData(Map<String, dynamic> data) {
+    final sanitized = <String, dynamic>{};
+    data.forEach((key, value) {
+      if (value is String || value is num || value is bool || value == null) {
+        sanitized[key] = value;
+      } else if (value is Map) {
+        sanitized[key] = _sanitizeUserData(Map<String, dynamic>.from(value));
+      } else if (value is List) {
+        sanitized[key] = value.map((e) => e is Map ? _sanitizeUserData(Map<String, dynamic>.from(e)) : e).toList();
+      } else {
+        if (value.runtimeType.toString().contains('Timestamp') || value.runtimeType.toString().contains('FieldValue')) {
+          sanitized[key] = value.toString();
+        }
+      }
+    });
+    return sanitized;
+  }
+
   static void forceLogin(Map<String, dynamic> userData) {
     init(); // Ensure loaded
-    _currentUser = Map<String, dynamic>.from(userData);
+    _currentUser = _sanitizeUserData(userData);
     _isFirstLoginAfterSignup = false;
     try {
       PlatformStorage.setString(_firstLoginKey, 'false');
@@ -271,26 +289,37 @@ class UserDatabase {
   }
 
   static Future<bool> signup(Map<String, dynamic> userData) async {
-    await syncUsersFromCloud();
-    await DocumentDatabase.syncFromCloud();
+    try {
+      await syncUsersFromCloud();
+      await DocumentDatabase.syncFromCloud();
+    } catch (_) {}
+    
     final email = userData['email']?.toString().toLowerCase().trim() ?? '';
     
-    // Check customers
-    final hasCustomer = _users.any((u) => u['email']?.toString().toLowerCase().trim() == email);
-    // Check workers
+    // Check workers (prevent worker email reuse for customer)
     final hasWorker = DocumentDatabase.onboardedTechnicians.any((t) => t['email']?.toString().toLowerCase().trim() == email);
-    
-    if (hasCustomer || hasWorker) {
-      return false; // Email already exists
+    if (hasWorker) {
+      return false; // Cannot register as customer if already a worker
     }
 
-    final newUserData = Map<String, dynamic>.from(userData);
+    final sanitizedData = _sanitizeUserData(userData);
+    final newUserData = Map<String, dynamic>.from(sanitizedData);
     newUserData['email'] = email;
     newUserData['password'] = newUserData['password']?.toString().trim();
     newUserData['role'] = 'customer';
-    _users.add(newUserData);
+
+    // Update existing customer in mock list if they exist, otherwise add them
+    final existingIndex = _users.indexWhere((u) => u['email']?.toString().toLowerCase().trim() == email);
+    if (existingIndex != -1) {
+      _users[existingIndex] = newUserData;
+    } else {
+      _users.add(newUserData);
+    }
+    
     _saveUsers();
-    await syncUsersToCloud();
+    try {
+      await syncUsersToCloud();
+    } catch (_) {}
 
     // Automatically log in
     _currentUser = newUserData;
